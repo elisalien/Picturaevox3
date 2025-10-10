@@ -1,0 +1,739 @@
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #111;
+  font-family: Arial, sans-serif;
+  touch-action: none;
+}
+
+#canvas-container {
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+  position: relative;
+}
+
+.toolbar {
+  position: fixed;
+  bottom: 8px;
+  left: 8px; /* 🔧 FIXÉ : pas de centrage, ancré à gauche */
+  right: 8px; /* 🔧 NOUVEAU : ancré à droite aussi */
+  transform: none; /* 🔧 SUPPRIMÉ : plus de transform qui cause le crop */
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: rgba(20, 20, 20, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  z-index: 1000;
+  flex-wrap: nowrap;
+  
+  /* Améliorations visuelles */
+  min-height: 48px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+  
+  /* 🚀 NOUVEAU : Gestion du débordement optimisée */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  
+  /* 🎯 Centrage du contenu */
+  justify-content: center;
+}
+
+.toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 🔧 CONTENEUR INTERNE POUR MEILLEUR CONTRÔLE */
+.toolbar-inner {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  flex-wrap: nowrap;
+  min-width: min-content;
+  justify-content: center;
+  width: 100%;
+}
+
+/* MOBILE ULTRA RESPONSIVE - AUCUN CROP */
+@media (max-width: 768px) {
+  .toolbar {
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    padding: 6px 8px;
+    gap: 4px;
+    border-radius: 6px;
+    min-height: 44px;
+    
+    /* 🎯 Protection anti-crop */
+    box-sizing: border-box;
+    justify-content: space-between; /* Répartition équitable */
+  }
+  
+  .tools {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 1; /* 🔧 Peut rétrécir si nécessaire */
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow: visible; /* 🔧 Pas de crop */
+    justify-content: center;
+    flex: 1; /* Prend l'espace disponible */
+  }
+  
+  .tool-btn {
+    min-width: 36px;
+    width: 36px; /* 🔧 Taille fixe mais responsive */
+    min-height: 36px;
+    height: 36px;
+    font-size: 14px;
+    padding: 0;
+    margin: 0;
+    border-radius: 5px;
+    flex-shrink: 0;
+    
+    /* 🎯 Protection des bords */
+    box-sizing: border-box;
+  }
+  
+  #size-slider {
+    width: 70px;
+    min-width: 50px; /* 🔧 Peut rétrécir un peu */
+    max-width: 80px;
+    height: 36px;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+}
+
+/* MOBILE STANDARD - GESTION INTELLIGENTE DE L'ESPACE */
+@media (max-width: 480px) {
+  .toolbar {
+    bottom: 2px;
+    left: 2px;
+    right: 2px;
+    padding: 4px 6px;
+    gap: 3px;
+    border-radius: 4px;
+    min-height: 40px;
+    justify-content: space-between;
+  }
+  
+  .tools {
+    gap: 2px;
+    justify-content: space-evenly; /* 🔧 Répartition équitable */
+    flex: 1;
+    max-width: calc(100% - 80px); /* 🔧 Laisse place au slider */
+  }
+  
+  .tool-btn {
+    min-width: 32px;
+    width: calc((100vw - 120px) / 9); /* 🔧 CALCUL DYNAMIQUE pour 9 outils */
+    max-width: 38px;
+    min-height: 32px;
+    height: 32px;
+    font-size: 13px;
+    border-radius: 4px;
+  }
+  
+  /* TOUS LES OUTILS VISIBLES */
+  #brush, #texture, #sparkles, #watercolor, #neon, #fire, #eraser, #pan, #undo {
+    display: flex !important;
+    flex-shrink: 1; /* 🔧 Peuvent rétrécir ensemble */
+  }
+  
+  #size-slider {
+    width: 60px;
+    min-width: 45px;
+    max-width: 70px;
+    height: 32px;
+    margin-left: 3px;
+    flex-shrink: 0;
+  }
+}
+
+/* PETITS ÉCRANS - OPTIMISATION AVANCÉE */
+@media (max-width: 375px) {
+  .toolbar {
+    padding: 3px 4px;
+    gap: 2px;
+    min-height: 38px;
+    border-radius: 3px;
+    left: 1px;
+    right: 1px;
+  }
+  
+  .tools {
+    gap: 1px;
+    max-width: calc(100% - 60px);
+  }
+  
+  .tool-btn {
+    min-width: 28px;
+    width: calc((100vw - 80px) / 9); /* 🔧 Calcul encore plus serré */
+    max-width: 34px;
+    min-height: 28px;
+    height: 28px;
+    font-size: 12px;
+    border-radius: 3px;
+  }
+  
+  /* GARDE TOUS LES OUTILS ESSENTIELS */
+  #brush, #texture, #sparkles, #watercolor, #neon, #fire, #eraser, #pan, #undo {
+    display: flex !important;
+  }
+  
+  #size-slider {
+    width: 50px;
+    min-width: 40px;
+    max-width: 55px;
+    height: 28px;
+    margin-left: 2px;
+  }
+}
+
+/* TRÈS PETITS ÉCRANS - VERSION ULTRA COMPACTE */
+@media (max-width: 320px) {
+  .toolbar {
+    padding: 2px 3px;
+    gap: 1px;
+    min-height: 36px;
+    border-radius: 2px;
+    left: 1px;
+    right: 1px;
+  }
+  
+  .tools {
+    gap: 1px;
+    max-width: calc(100% - 50px);
+  }
+  
+  .tool-btn {
+    min-width: 26px;
+    width: calc((100vw - 70px) / 7); /* 🔧 7 outils sur ultra petit */
+    max-width: 30px;
+    min-height: 26px;
+    height: 26px;
+    font-size: 11px;
+    border-radius: 2px;
+  }
+  
+  /* Cache seulement watercolor et fire */
+  #watercolor, #fire {
+    display: none;
+  }
+  
+  /* Garde les 7 outils essentiels */
+  #brush, #texture, #sparkles, #neon, #eraser, #pan, #undo {
+    display: flex !important;
+  }
+  
+  #size-slider {
+    width: 40px;
+    min-width: 35px;
+    max-width: 45px;
+    height: 26px;
+    margin-left: 1px;
+  }
+}
+
+/* MODE PAYSAGE - TOOLBAR ADAPTATIVE */
+@media (max-height: 500px) and (orientation: landscape) {
+  .toolbar {
+    bottom: 1px;
+    left: 1px;
+    right: 1px;
+    padding: 2px 4px;
+    gap: 2px;
+    min-height: 32px;
+    justify-content: space-between;
+  }
+  
+  .tool-btn {
+    min-width: 24px;
+    width: calc((100vw - 60px) / 9);
+    max-width: 28px;
+    min-height: 24px;
+    height: 24px;
+    font-size: 10px;
+    border-radius: 2px;
+  }
+  
+  .tools {
+    gap: 1px;
+    max-width: calc(100% - 50px);
+  }
+  
+  #size-slider {
+    width: 40px;
+    min-width: 35px;
+    height: 24px;
+    margin-left: 2px;
+  }
+}
+
+/* 🔧 MEDIA QUERY SPÉCIALE POUR ÉCRANS EXTRA ÉTROITS */
+@media (max-width: 280px) {
+  .toolbar {
+    padding: 1px 2px;
+    gap: 1px;
+    left: 0px;
+    right: 0px;
+  }
+  
+  .tool-btn {
+    min-width: 22px;
+    width: calc((100vw - 50px) / 7);
+    max-width: 26px;
+    min-height: 22px;
+    height: 22px;
+    font-size: 10px;
+  }
+  
+  #size-slider {
+    width: 35px;
+    min-width: 30px;
+    height: 22px;
+  }
+}
+
+.tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  border: none;
+  border-radius: 6px;
+  background-color: #444;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  /* Améliorations tactiles */
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  box-sizing: border-box; /* 🔧 IMPORTANT pour les calculs */
+}
+
+.tool-btn:hover,
+.tool-btn:active {
+  background-color: #666;
+  transform: scale(1.02); /* 🔧 Réduit pour éviter le débordement */
+}
+
+.tool-btn.active {
+  background-color: #6b5bff;
+  box-shadow: 0 0 8px rgba(107, 91, 255, 0.5);
+}
+
+.color-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.color-btn:hover {
+  transform: scale(1.1);
+}
+
+.color-btn.active {
+  border-color: white;
+  transform: scale(1.2);
+  box-shadow: 0 0 6px rgba(255,255,255,0.7);
+}
+
+/* Style spécial pour la couleur blanche */
+.color-btn[data-color="#FFFFFF"] {
+  border-color: #666 !important;
+}
+
+.color-btn[data-color="#FFFFFF"].active {
+  border-color: #FFD740 !important;
+  box-shadow: 0 0 6px rgba(255, 215, 64, 0.7);
+}
+
+#size-slider {
+  width: 120px;
+  accent-color: #6b5bff;
+  height: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+  outline: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+#size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6b5bff;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+#size-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6b5bff;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* === STYLES INTERFACE ARTISTE === */
+
+.artist-toolbar {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  width: 200px;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
+  background-color: rgba(20, 20, 20, 0.95);
+  border-radius: 8px;
+  padding: 12px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.tool-group {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 15px;
+}
+
+.tool-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.tool-group h3 {
+  color: #fff;
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.artist-toolbar .tool-btn, 
+.shape-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  background-color: #444;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2px;
+  transition: all 0.2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.artist-toolbar .tool-btn:hover,
+.shape-btn:hover {
+  background-color: #666;
+  transform: scale(1.05);
+}
+
+.artist-toolbar .tool-btn.active,
+.shape-btn.active {
+  background-color: #6b5bff;
+  box-shadow: 0 0 8px rgba(107, 91, 255, 0.5);
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.color-grid .color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.color-grid .color-btn:hover {
+  transform: scale(1.1);
+}
+
+.color-grid .color-btn.active {
+  border-color: white;
+  box-shadow: 0 0 6px rgba(255,255,255,0.5);
+}
+
+.color-grid .color-btn[data-color="#FFFFFF"] {
+  border-color: #666 !important;
+}
+
+.color-grid .color-btn[data-color="#FFFFFF"].active {
+  border-color: #FFD740 !important;
+  box-shadow: 0 0 6px rgba(255, 215, 64, 0.5);
+}
+
+#color-picker {
+  width: 100%;
+  height: 30px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.artist-toolbar #size-slider {
+  width: 100%;
+  accent-color: #6b5bff;
+  margin-bottom: 5px;
+}
+
+#size-display {
+  color: #ccc;
+  font-size: 11px;
+  text-align: center;
+  display: block;
+}
+
+#zoom-indicator {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(0,0,0,0.7);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Responsive interface artiste */
+@media (max-width: 768px) {
+  .artist-toolbar {
+    width: 160px;
+    left: 5px;
+    top: 5px;
+    padding: 8px;
+  }
+  
+  .artist-toolbar .tool-btn, 
+  .shape-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+    margin: 1px;
+  }
+  
+  .color-grid .color-btn {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .tool-group h3 {
+    font-size: 10px;
+  }
+  
+  #zoom-indicator {
+    top: 5px;
+    right: 5px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+
+/* Interface admin responsive */
+.admin-toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: rgba(20, 20, 20, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.admin-toolbar .tool-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+  border: none;
+  border-radius: 6px;
+  background-color: #444;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-toolbar .tool-btn:hover {
+  background-color: #666;
+  transform: scale(1.05);
+}
+
+.admin-toolbar .tool-btn.active {
+  background-color: #6b5bff;
+  box-shadow: 0 0 8px rgba(107, 91, 255, 0.5);
+}
+
+.divider {
+  width: 1px;
+  height: 30px;
+  background-color: #666;
+  margin: 0 4px;
+}
+
+#hide-ui {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 2000;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  border: 1px solid #666;
+}
+
+#minimap {
+  position: fixed;
+  bottom: 80px;
+  right: 10px;
+  border: 1px solid #555;
+  background: #111;
+  z-index: 1000;
+  border-radius: 4px;
+}
+
+/* 🔧 AMÉLIORATIONS POUR ÉVITER LE CROP */
+@media (hover: none) and (pointer: coarse) {
+  .tool-btn:hover,
+  .color-btn:hover,
+  .artist-toolbar .tool-btn:hover,
+  .shape-btn:hover,
+  .color-grid .color-btn:hover {
+    transform: none;
+  }
+  
+  .tool-btn:active,
+  .color-btn:active {
+    transform: scale(0.98); /* 🔧 Réduit encore plus */
+    background-color: #777;
+  }
+}
+
+/* FIXES SAFARI MOBILE */
+@supports (-webkit-touch-callout: none) {
+  .toolbar,
+  .artist-toolbar {
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  body {
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  
+  #canvas-container {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 🔧 FIX SAFARI VIEWPORT */
+  .toolbar {
+    bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  }
+}
+
+/* NOTIFICATION STYLE */
+.undo-notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(107, 91, 255, 0.9);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  z-index: 2000;
+  animation: undoNotification 0.8s ease-out;
+  pointer-events: none;
+}
+
+@keyframes undoNotification {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Picturævox — Dessin collaboratif</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* 🎯 TOOLBAR V3 OPTIMISÉE */
+    .toolbar-v3 {
+      position: fixed;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: rgba(20, 20, 20, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Ligne 1: Outils de dessin */
+    .toolbar-row-tools {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .toolbar-row-tools::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Ligne 2: Contrôles (slider + zoom) */
+    .toolbar-row-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .size-control {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.05);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+
+    .size-label {
+      color: #ccc;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 35px;
+    }
+
+    #size-slider-v3 {
+      flex: 1;
+      height: 8px;
+      background: linear-gradient(to right, 
+        rgba(107, 91, 255, 0.3) 0%, 
+        rgba(107, 91, 255, 0.8) 100%
+      );
+      border-radius: 4px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    #size-slider-v3::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #6b5bff;
+      cursor: pointer;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
+    }
+
+    #size-slider-v3::-webkit-slider-thumb:active {
+      transform: scale(1.2);
+    }
+
+    #size-slider-v3::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #6b5bff;
+      cursor: pointer;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .zoom-controls {
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.05);
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .zoom-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      border: none;
+      border-radius: 6px;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .zoom-btn:active {
+      transform: scale(0.95);
+      background-color: #666;
+    }
+
+    /* 📊 INDICATEURS DE CONNEXION */
+    .status-bar {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 999;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(20, 20, 20, 0.9);
+      border-radius: 20px;
+      font-size: 12px;
+      color: white;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    #connection-indicator {
+      transition: all 0.3s;
+    }
+
+    #latency-display {
+      font-weight: 600;
+      font-family: monospace;
+    }
+
+    /* MOBILE OPTIMISATIONS */
+    @media (max-width: 768px) {
+      .toolbar-v3 {
+        bottom: 4px;
+        left: 4px;
+        right: 4px;
+        padding: 10px;
+        gap: 6px;
+      }
+
+      .toolbar-row-tools {
+        gap: 4px;
+      }
+
+      .tool-btn {
+        min-width: 38px;
+        width: 38px;
+        min-height: 38px;
+        height: 38px;
+        font-size: 16px;
+      }
+
+      .size-control {
+        padding: 6px 10px;
+      }
+
+      .size-label {
+        font-size: 11px;
+        min-width: 32px;
+      }
+
+      #size-slider-v3::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+      }
+
+      .zoom-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
+      }
+
+      .status-bar {
+        top: 4px;
+        right: 4px;
+        gap: 4px;
+      }
+
+      .status-indicator {
+        padding: 4px 10px;
+        font-size: 11px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .tool-btn {
+        min-width: 34px;
+        width: 34px;
+        min-height: 34px;
+        height: 34px;
+        font-size: 14px;
+      }
+
+      .zoom-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 14px;
+      }
+
+      #size-slider-v3::-webkit-slider-thumb {
+        width: 26px;
+        height: 26px;
+      }
+    }
+
+    /* PAYSAGE MODE */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .toolbar-v3 {
+        padding: 6px;
+        gap: 4px;
+      }
+
+      .tool-btn, .zoom-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+
+      .size-control {
+        padding: 4px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- 📊 BARRE D'ÉTAT CONNEXION -->
+  <div class="status-bar">
+    <div id="connection-indicator" class="status-indicator">
+      <span style="font-size: 16px;">●</span>
+      <span>Connexion...</span>
+    </div>
+    <div class="status-indicator">
+      <span style="font-size: 14px;">📡</span>
+      <span id="latency-display">--ms</span>
+    </div>
+  </div>
+
+  <!-- 🎨 TOOLBAR V3 OPTIMISÉE -->
+  <div class="toolbar-v3">
+    <!-- Ligne 1: Outils de dessin -->
+    <div class="toolbar-row-tools">
+      <button id="brush" class="tool-btn active" title="Pinceau">🖋️</button>
+      <button id="texture" class="tool-btn" title="Spray">🖌️</button>
+      <button id="sparkles" class="tool-btn" title="Paillettes">✨</button>
+      <button id="watercolor" class="tool-btn" title="Aquarelle">💧</button>
+      <button id="neon" class="tool-btn" title="Néon">🌟</button>
+      <button id="fire" class="tool-btn" title="Feu">🔥</button>
+      <button id="eraser" class="tool-btn" title="Gomme">🧽</button>
+      <button id="pan" class="tool-btn" title="Déplacement">✋</button>
+      <button id="undo" class="tool-btn" title="Annuler">↶</button>
+    </div>
+
+    <!-- Ligne 2: Contrôles -->
+    <div class="toolbar-row-controls">
+      <div class="size-control">
+        <span class="size-label" id="size-value">4px</span>
+        <input type="range" id="size-slider-v3" min="1" max="20" value="4" />
+      </div>
+
+      <div class="zoom-controls">
+        <button id="zoom-out" class="zoom-btn" title="Zoom -">🔍-</button>
+        <button id="zoom-reset" class="zoom-btn" title="Reset">⚫</button>
+        <button id="zoom-in" class="zoom-btn" title="Zoom +">🔍+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="connectionManager.js"></script>
+  <script src="brushManager.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
