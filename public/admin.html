@@ -72,6 +72,167 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
 
+    /* 🎯 TOOLBAR V3 PUBLIQUE (en bas) */
+    .toolbar-v3 {
+      position: fixed;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background-color: rgba(20, 20, 20, 0.95);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      z-index: 999;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .toolbar-row-tools {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .toolbar-row-tools::-webkit-scrollbar {
+      display: none;
+    }
+
+    .toolbar-row-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .size-control {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.05);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+
+    .size-label {
+      color: #ccc;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 35px;
+    }
+
+    #size-slider-v3 {
+      flex: 1;
+      height: 8px;
+      background: linear-gradient(to right, 
+        rgba(107, 91, 255, 0.3) 0%, 
+        rgba(107, 91, 255, 0.8) 100%
+      );
+      border-radius: 4px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    #size-slider-v3::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #6b5bff;
+      cursor: pointer;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
+    }
+
+    #size-slider-v3::-webkit-slider-thumb:active {
+      transform: scale(1.2);
+    }
+
+    #size-slider-v3::-moz-range-thumb {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #6b5bff;
+      cursor: pointer;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .zoom-controls {
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.05);
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .zoom-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      border: none;
+      border-radius: 6px;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .zoom-btn:active {
+      transform: scale(0.95);
+      background-color: #666;
+    }
+
+    /* 📊 INDICATEURS DE CONNEXION */
+    .status-bar {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 1002;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(20, 20, 20, 0.9);
+      border-radius: 20px;
+      font-size: 12px;
+      color: white;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    #connection-indicator {
+      transition: all 0.3s;
+    }
+
+    #latency-display {
+      font-weight: 600;
+      font-family: monospace;
+    }
+
     /* Mobile responsive */
     @media (max-width: 768px) {
       .admin-toolbar {
@@ -90,6 +251,32 @@
         padding: 6px 12px;
         font-size: 11px;
       }
+
+      .toolbar-v3 {
+        bottom: 4px;
+        left: 4px;
+        right: 4px;
+        padding: 10px;
+        gap: 6px;
+      }
+
+      .toolbar-row-tools {
+        gap: 4px;
+      }
+
+      .toolbar-v3 .tool-btn {
+        min-width: 38px;
+        width: 38px;
+        min-height: 38px;
+        height: 38px;
+        font-size: 16px;
+      }
+
+      .zoom-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
+      }
     }
   </style>
 </head>
@@ -101,7 +288,7 @@
     👑 MODE ADMIN
   </div>
 
-  <!-- 📊 BARRE D'ÉTAT CONNEXION (même que public) -->
+  <!-- 📊 BARRE D'ÉTAT CONNEXION -->
   <div class="status-bar">
     <div id="connection-indicator" class="status-indicator">
       <span style="font-size: 16px;">●</span>
@@ -113,7 +300,7 @@
     </div>
   </div>
 
-  <!-- 👑 TOOLBAR ADMIN (pouvoirs spéciaux) -->
+  <!-- 👑 TOOLBAR ADMIN (pouvoirs spéciaux en haut) -->
   <div class="admin-toolbar">
     <button id="pan" class="tool-btn active" title="Déplacement">✋</button>
     <button id="zoom-in" class="tool-btn" title="Zoom +">🔍+</button>
@@ -133,7 +320,7 @@
     <button id="back-home" class="tool-btn" title="Retour public">🏠</button>
   </div>
 
-  <!-- 🎨 TOOLBAR PUBLIQUE (même interface que index.html) -->
+  <!-- 🎨 TOOLBAR PUBLIQUE (dessin en bas) -->
   <div class="toolbar-v3">
     <!-- Ligne 1: Outils de dessin -->
     <div class="toolbar-row-tools">
