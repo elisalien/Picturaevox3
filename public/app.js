@@ -1,4 +1,189 @@
-const newPos = {
+// public/app.js V3.1 - Avec gestion réseau robuste, zoom et texture unifiée
+const socket = io({
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 5,
+  timeout: 10000,
+  transports: ['websocket', 'polling']
+});
+
+const stage = new Konva.Stage({
+  container: 'canvas-container',
+  width: window.innerWidth,
+  height: window.innerHeight
+});
+const layer = new Konva.Layer();
+stage.add(layer);
+
+// 🌐 Initialiser ConnectionManager
+const connectionManager = new ConnectionManager(socket);
+
+// Initialiser le BrushManager unifié
+const brushManager = new BrushManager(layer, socket);
+
+let currentTool = 'brush';
+let currentColor = '#FFFFFF';
+let currentSize = parseInt(document.getElementById('size-slider-v3').value, 10);
+let currentZoom = 1;
+let isDrawing = false;
+let lastLine;
+let currentId;
+let lastPanPos = null;
+
+// === UTILITAIRES ===
+function throttle(func, wait) {
+  let lastTime = 0;
+  return function(...args) {
+    const now = Date.now();
+    if (now - lastTime >= wait) {
+      lastTime = now;
+      func.apply(this, args);
+    }
+  };
+}
+
+function generateId() {
+  return 'shape_' + Date.now() + '_' + Math.round(Math.random() * 10000);
+}
+
+function getPressure(evt) {
+  if (evt.originalEvent && evt.originalEvent.pressure !== undefined) {
+    return Math.max(0.1, evt.originalEvent.pressure);
+  }
+  return 1;
+}
+
+function getPressureSize(pressure) {
+  const minSize = Math.max(1, currentSize * 0.3);
+  const maxSize = currentSize * 1.5;
+  return minSize + (maxSize - minSize) * pressure;
+}
+
+function getScenePos(pointer) {
+  return {
+    x: (pointer.x - stage.x()) / stage.scaleX(),
+    y: (pointer.y - stage.y()) / stage.scaleY()
+  };
+}
+
+const emitDrawingThrottled = throttle((data) => {
+  connectionManager.emit('drawing', data);
+}, 50);
+
+const emitTextureThrottled = throttle((data) => {
+  connectionManager.emit('texture', data);
+}, 120); // Unifié mobile/PC
+
+// === 🎨 INTERFACE UTILISATEUR ===
+
+// Outils de dessin
+document.querySelectorAll('.tool-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.id === 'undo') {
+      handleUndo();
+      return;
+    }
+    
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTool = btn.id;
+    updateCursor();
+  });
+});
+
+// Slider d'épaisseur V3
+const sizeSlider = document.getElementById('size-slider-v3');
+const sizeValue = document.getElementById('size-value');
+
+sizeSlider.addEventListener('input', e => {
+  currentSize = parseInt(e.target.value, 10);
+  sizeValue.textContent = currentSize + 'px';
+  
+  // Feedback visuel
+  const percent = (currentSize - 1) / 19 * 100;
+  sizeSlider.style.background = `linear-gradient(to right, 
+    rgba(107, 91, 255, 0.8) 0%, 
+    rgba(107, 91, 255, 0.8) ${percent}%, 
+    rgba(107, 91, 255, 0.3) ${percent}%, 
+    rgba(107, 91, 255, 0.3) 100%
+  )`;
+});
+
+// 🔍 ZOOM CONTROLS
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
+const zoomResetBtn = document.getElementById('zoom-reset');
+
+function setZoom(newZoom) {
+  newZoom = Math.max(0.1, Math.min(5, newZoom));
+  
+  const center = {
+    x: stage.width() / 2,
+    y: stage.height() / 2
+  };
+  
+  const oldScale = stage.scaleX();
+  const mousePointTo = {
+    x: (center.x - stage.x()) / oldScale,
+    y: (center.y - stage.y()) / oldScale
+  };
+  
+  stage.scale({ x: newZoom, y: newZoom });
+  
+  const newPos = {
+    x: center.x - mousePointTo.x * newZoom,
+    y: center.y - mousePointTo.y * newZoom
+  };
+  stage.position(newPos);
+  stage.batchDraw();
+  
+  currentZoom = newZoom;
+  
+  // Feedback visuel
+  zoomResetBtn.textContent = Math.round(newZoom * 100) + '%';
+  zoomResetBtn.style.fontSize = '10px';
+  zoomResetBtn.style.fontWeight = '600';
+}
+
+zoomInBtn.addEventListener('click', () => {
+  setZoom(currentZoom * 1.2);
+});
+
+zoomOutBtn.addEventListener('click', () => {
+  setZoom(currentZoom / 1.2);
+});
+
+zoomResetBtn.addEventListener('click', () => {
+  stage.scale({ x: 1, y: 1 });
+  stage.position({ x: 0, y: 0 });
+  stage.batchDraw();
+  currentZoom = 1;
+  zoomResetBtn.textContent = '⚫';
+  zoomResetBtn.style.fontSize = '18px';
+});
+
+// Zoom molette souris
+stage.on('wheel', (e) => {
+  e.evt.preventDefault();
+  
+  const scaleBy = 1.1;
+  const pointer = stage.getPointerPosition();
+  const mousePointTo = {
+    x: (pointer.x - stage.x()) / stage.scaleX(),
+    y: (pointer.y - stage.y()) / stage.scaleY(),
+  };
+
+  let direction = e.evt.deltaY > 0 ? -1 : 1;
+  let newScale = stage.scaleX() * (scaleBy ** direction);
+  
+  newScale = Math.max(0.1, Math.min(5, newScale));
+  
+  stage.scale({ x: newScale, y: newScale });
+  
+  const newPos = {
+    x: pointer
+    const newPos = {
     x: pointer.x - mousePointTo.x * newScale,
     y: pointer.y - mousePointTo.y * newScale,
   };
