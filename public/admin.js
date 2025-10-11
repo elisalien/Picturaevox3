@@ -817,4 +817,15 @@ document.addEventListener('keydown', (e) => {
     showAdminNotification('Effets Reset Globalement ✨');
   }
   
-  if
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    if (confirm('ADMIN: Reset COMPLET (dessins + effets) ?')) {
+      layer.destroyChildren();
+      brushManager.clearEverything();
+      layer.draw();
+      connectionManager.emit('clearCanvas');
+      connectionManager.emit('adminResetBrushEffects');
+      showAdminNotification('Reset COMPLET Global 🧼✨');
+    }
+  }
+});

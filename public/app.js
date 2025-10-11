@@ -1,4 +1,4 @@
-// public/app.js V3.1 - Avec gestion réseau robuste, zoom et texture unifiée
+// public/app.js V3.1 - CORRIGÉ ET COMPLET
 const socket = io({
   reconnection: true,
   reconnectionDelay: 1000,
@@ -16,10 +16,7 @@ const stage = new Konva.Stage({
 const layer = new Konva.Layer();
 stage.add(layer);
 
-// 🌐 Initialiser ConnectionManager
 const connectionManager = new ConnectionManager(socket);
-
-// Initialiser le BrushManager unifié
 const brushManager = new BrushManager(layer, socket);
 
 let currentTool = 'brush';
@@ -73,26 +70,26 @@ const emitDrawingThrottled = throttle((data) => {
 
 const emitTextureThrottled = throttle((data) => {
   connectionManager.emit('texture', data);
-}, 120); // Unifié mobile/PC
+}, 120);
 
-// === 🎨 INTERFACE UTILISATEUR ===
+// === INTERFACE UTILISATEUR ===
 
-// Outils de dessin
-document.querySelectorAll('.tool-btn').forEach(btn => {
+// ✅ FIX: Sélection des outils (toolbar-v3 uniquement)
+document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.id === 'undo') {
       handleUndo();
       return;
     }
     
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentTool = btn.id;
     updateCursor();
   });
 });
 
-// Slider d'épaisseur V3
+// Slider d'épaisseur
 const sizeSlider = document.getElementById('size-slider-v3');
 const sizeValue = document.getElementById('size-value');
 
@@ -100,7 +97,6 @@ sizeSlider.addEventListener('input', e => {
   currentSize = parseInt(e.target.value, 10);
   sizeValue.textContent = currentSize + 'px';
   
-  // Feedback visuel
   const percent = (currentSize - 1) / 19 * 100;
   sizeSlider.style.background = `linear-gradient(to right, 
     rgba(107, 91, 255, 0.8) 0%, 
@@ -110,7 +106,7 @@ sizeSlider.addEventListener('input', e => {
   )`;
 });
 
-// 🔍 ZOOM CONTROLS
+// ZOOM CONTROLS
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomResetBtn = document.getElementById('zoom-reset');
@@ -140,7 +136,6 @@ function setZoom(newZoom) {
   
   currentZoom = newZoom;
   
-  // Feedback visuel
   zoomResetBtn.textContent = Math.round(newZoom * 100) + '%';
   zoomResetBtn.style.fontSize = '10px';
   zoomResetBtn.style.fontWeight = '600';
@@ -163,7 +158,7 @@ zoomResetBtn.addEventListener('click', () => {
   zoomResetBtn.style.fontSize = '18px';
 });
 
-// Zoom molette souris
+// Zoom molette
 stage.on('wheel', (e) => {
   e.evt.preventDefault();
   
@@ -182,8 +177,6 @@ stage.on('wheel', (e) => {
   stage.scale({ x: newScale, y: newScale });
   
   const newPos = {
-    x: pointer
-    const newPos = {
     x: pointer.x - mousePointTo.x * newScale,
     y: pointer.y - mousePointTo.y * newScale,
   };
@@ -196,7 +189,6 @@ stage.on('wheel', (e) => {
   zoomResetBtn.style.fontWeight = '600';
 });
 
-// Gestion du curseur
 function updateCursor() {
   const container = stage.container();
   switch(currentTool) {
@@ -208,13 +200,11 @@ function updateCursor() {
   }
 }
 
-// Fonction pour gérer l'undo avec notification visuelle
 function handleUndo() {
   connectionManager.emit('undo');
   showUndoNotification();
 }
 
-// Fonction pour afficher une notification d'undo
 function showUndoNotification() {
   const notification = document.createElement('div');
   notification.className = 'undo-notification';
@@ -228,7 +218,6 @@ function showUndoNotification() {
   }, 800);
 }
 
-// Raccourci Ctrl+Z pour undo
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === 'z') {
     e.preventDefault();
@@ -236,7 +225,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// === 🎨 ÉVÉNEMENTS DE DESSIN ===
+// === ÉVÉNEMENTS DE DESSIN ===
 
 stage.on('mousedown touchstart pointerdown', (evt) => {
   const pointer = stage.getPointerPosition();
@@ -265,7 +254,6 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
     return;
   }
 
-  // BRUSH ANIMÉS - Avec tracés permanents via BrushManager
   if (['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
     isDrawing = true;
     currentId = generateId();
@@ -273,7 +261,6 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
     return;
   }
   
-  // Mode brush normal ou gomme
   isDrawing = true;
   currentId = generateId();
   
@@ -327,13 +314,11 @@ stage.on('mousemove touchmove pointermove', (evt) => {
     return;
   }
 
-  // BRUSH ANIMÉS - Continuer l'effet avec tracés permanents
   if (['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
     brushManager.createAndEmitEffect(currentTool, scenePos.x, scenePos.y, currentColor, pressureSize);
     return;
   }
   
-  // Mode brush normal ou gomme
   if (lastLine) {
     lastLine.points(lastLine.points().concat([scenePos.x, scenePos.y]));
     lastLine.strokeWidth(pressureSize);
@@ -359,7 +344,6 @@ stage.on('mouseup touchend pointerup', () => {
   if (!isDrawing) return;
   isDrawing = false;
   
-  // Les brush animés et texture n'ont pas besoin d'événement final
   if (currentTool === 'texture' || ['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
     return;
   }
@@ -375,36 +359,27 @@ stage.on('mouseup touchend pointerup', () => {
   }
 });
 
-// === EFFET TEXTURE UNIFIÉ (identique mobile/PC) ===
+// === EFFET TEXTURE UNIFIÉ ===
 function createTextureEffect(x, y, color, size) {
-  // Détection device pour adapter les performances
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isLowPerf = isMobile || navigator.hardwareConcurrency <= 2;
   
-  // Paramètres unifiés mais adaptatifs
   const particleCount = isLowPerf ? 6 : 8;
   const spreadMultiplier = 1.4;
   const minDotSize = 1.2;
   const maxDotSizeMultiplier = 2.5;
   
   for (let i = 0; i < particleCount; i++) {
-    // Position aléatoire avec spread constant
     const angle = Math.random() * Math.PI * 2;
     const distance = Math.random() * size * spreadMultiplier;
     const offsetX = Math.cos(angle) * distance;
     const offsetY = Math.sin(angle) * distance;
     
-    // Opacité uniforme
     const alpha = 0.35 + Math.random() * 0.35;
-    
-    // Taille de particule proportionnelle
     const dotSize = minDotSize + Math.random() * (size / maxDotSizeMultiplier);
-    
-    // Type de particule (70% lignes, 30% points)
     const useLineParticle = Math.random() < 0.7;
     
     if (useLineParticle) {
-      // Particule ligne (effet spray principal)
       const lineLength = 1 + Math.random() * 2.5;
       const lineAngle = Math.random() * Math.PI * 2;
       const endX = x + offsetX + Math.cos(lineAngle) * lineLength;
@@ -422,7 +397,6 @@ function createTextureEffect(x, y, color, size) {
       });
       layer.add(line);
     } else {
-      // Particule point (variation)
       const dot = new Konva.Circle({
         x: x + offsetX,
         y: y + offsetY,
@@ -439,13 +413,11 @@ function createTextureEffect(x, y, color, size) {
   layer.batchDraw();
 }
 
-// === 🌐 SOCKET LISTENERS ===
+// === SOCKET LISTENERS ===
 
-// Initialize existing shapes on load (INCLUDING permanent traces)
 socket.on('initShapes', shapes => {
   shapes.forEach(data => {
     if (data.type === 'permanentTrace') {
-      // ✅ Recréer les tracés permanents depuis les données serveur
       let element;
       
       switch(data.shapeType) {
@@ -469,7 +441,6 @@ socket.on('initShapes', shapes => {
         layer.add(element);
       }
     } else {
-      // Tracé normal (brush classique)
       const line = new Konva.Line({
         id: data.id,
         points: data.points,
@@ -484,7 +455,7 @@ socket.on('initShapes', shapes => {
   });
   layer.draw();
   
-  console.log(`✅ Loaded ${shapes.length} shapes (including permanent traces)`);
+  console.log(`✅ Loaded ${shapes.length} shapes`);
 });
 
 socket.on('brushEffect', (data) => {
@@ -628,7 +599,6 @@ socket.on('adminResetBrushEffects', () => {
   showUndoNotification('Effets réinitialisés ✨');
 });
 
-// Initialisation du curseur
 updateCursor();
 
-console.log('✅ App.js V3.1 loaded - Unified texture rendering mobile/PC');
+console.log('✅ App.js V3.1 loaded and working');
