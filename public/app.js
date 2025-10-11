@@ -1,187 +1,4 @@
-// public/app.js V3 - Avec gestion réseau robuste et zoom
-const socket = io({
-  reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  reconnectionAttempts: 5,
-  timeout: 10000,
-  transports: ['websocket', 'polling']
-});
-
-const stage = new Konva.Stage({
-  container: 'canvas-container',
-  width: window.innerWidth,
-  height: window.innerHeight
-});
-const layer = new Konva.Layer();
-stage.add(layer);
-
-// 🌐 Initialiser ConnectionManager
-const connectionManager = new ConnectionManager(socket);
-
-// Initialiser le BrushManager unifié
-const brushManager = new BrushManager(layer, socket);
-
-let currentTool = 'brush';
-let currentColor = '#FFFFFF';
-let currentSize = parseInt(document.getElementById('size-slider-v3').value, 10);
-let currentZoom = 1;
-let isDrawing = false;
-let lastLine;
-let currentId;
-let lastPanPos = null;
-
-// === UTILITAIRES ===
-function throttle(func, wait) {
-  let lastTime = 0;
-  return function(...args) {
-    const now = Date.now();
-    if (now - lastTime >= wait) {
-      lastTime = now;
-      func.apply(this, args);
-    }
-  };
-}
-
-function generateId() {
-  return 'shape_' + Date.now() + '_' + Math.round(Math.random() * 10000);
-}
-
-function getPressure(evt) {
-  if (evt.originalEvent && evt.originalEvent.pressure !== undefined) {
-    return Math.max(0.1, evt.originalEvent.pressure);
-  }
-  return 1;
-}
-
-function getPressureSize(pressure) {
-  const minSize = Math.max(1, currentSize * 0.3);
-  const maxSize = currentSize * 1.5;
-  return minSize + (maxSize - minSize) * pressure;
-}
-
-function getScenePos(pointer) {
-  return {
-    x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY()
-  };
-}
-
-const emitDrawingThrottled = throttle((data) => {
-  connectionManager.emit('drawing', data);
-}, 50);
-
-const emitTextureThrottled = throttle((data) => {
-  connectionManager.emit('texture', data);
-}, 150);
-
-// === 🎨 INTERFACE UTILISATEUR ===
-
-// Outils de dessin
-document.querySelectorAll('.tool-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.id === 'undo') {
-      handleUndo();
-      return;
-    }
-    
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentTool = btn.id;
-    updateCursor();
-  });
-});
-
-// Slider d'épaisseur V3
-const sizeSlider = document.getElementById('size-slider-v3');
-const sizeValue = document.getElementById('size-value');
-
-sizeSlider.addEventListener('input', e => {
-  currentSize = parseInt(e.target.value, 10);
-  sizeValue.textContent = currentSize + 'px';
-  
-  // Feedback visuel
-  const percent = (currentSize - 1) / 19 * 100;
-  sizeSlider.style.background = `linear-gradient(to right, 
-    rgba(107, 91, 255, 0.8) 0%, 
-    rgba(107, 91, 255, 0.8) ${percent}%, 
-    rgba(107, 91, 255, 0.3) ${percent}%, 
-    rgba(107, 91, 255, 0.3) 100%
-  )`;
-});
-
-// 🔍 ZOOM CONTROLS
-const zoomInBtn = document.getElementById('zoom-in');
-const zoomOutBtn = document.getElementById('zoom-out');
-const zoomResetBtn = document.getElementById('zoom-reset');
-
-function setZoom(newZoom) {
-  newZoom = Math.max(0.1, Math.min(5, newZoom));
-  
-  const center = {
-    x: stage.width() / 2,
-    y: stage.height() / 2
-  };
-  
-  const oldScale = stage.scaleX();
-  const mousePointTo = {
-    x: (center.x - stage.x()) / oldScale,
-    y: (center.y - stage.y()) / oldScale
-  };
-  
-  stage.scale({ x: newZoom, y: newZoom });
-  
-  const newPos = {
-    x: center.x - mousePointTo.x * newZoom,
-    y: center.y - mousePointTo.y * newZoom
-  };
-  stage.position(newPos);
-  stage.batchDraw();
-  
-  currentZoom = newZoom;
-  
-  // Feedback visuel
-  zoomResetBtn.textContent = Math.round(newZoom * 100) + '%';
-  zoomResetBtn.style.fontSize = '10px';
-  zoomResetBtn.style.fontWeight = '600';
-}
-
-zoomInBtn.addEventListener('click', () => {
-  setZoom(currentZoom * 1.2);
-});
-
-zoomOutBtn.addEventListener('click', () => {
-  setZoom(currentZoom / 1.2);
-});
-
-zoomResetBtn.addEventListener('click', () => {
-  stage.scale({ x: 1, y: 1 });
-  stage.position({ x: 0, y: 0 });
-  stage.batchDraw();
-  currentZoom = 1;
-  zoomResetBtn.textContent = '⚫';
-  zoomResetBtn.style.fontSize = '18px';
-});
-
-// Zoom molette souris
-stage.on('wheel', (e) => {
-  e.evt.preventDefault();
-  
-  const scaleBy = 1.1;
-  const pointer = stage.getPointerPosition();
-  const mousePointTo = {
-    x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY(),
-  };
-
-  let direction = e.evt.deltaY > 0 ? -1 : 1;
-  let newScale = stage.scaleX() * (scaleBy ** direction);
-  
-  newScale = Math.max(0.1, Math.min(5, newScale));
-  
-  stage.scale({ x: newScale, y: newScale });
-  
-  const newPos = {
+const newPos = {
     x: pointer.x - mousePointTo.x * newScale,
     y: pointer.y - mousePointTo.y * newScale,
   };
@@ -373,27 +190,67 @@ stage.on('mouseup touchend pointerup', () => {
   }
 });
 
-// === EFFET TEXTURE SIMPLIFIÉ ===
+// === EFFET TEXTURE UNIFIÉ (identique mobile/PC) ===
 function createTextureEffect(x, y, color, size) {
-  for (let i = 0; i < 4; i++) {
-    const offsetX = (Math.random() - 0.5) * 8;
-    const offsetY = (Math.random() - 0.5) * 8;
-    const alpha = 0.3 + Math.random() * 0.3;
-    const dot = new Konva.Line({
-      points: [
-        x + offsetX,
-        y + offsetY,
-        x + offsetX + Math.random() * 2,
-        y + offsetY + Math.random() * 2
-      ],
-      stroke: color,
-      strokeWidth: 1 + Math.random() * (size / 3),
-      globalAlpha: alpha,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-    layer.add(dot);
+  // Détection device pour adapter les performances
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isLowPerf = isMobile || navigator.hardwareConcurrency <= 2;
+  
+  // Paramètres unifiés mais adaptatifs
+  const particleCount = isLowPerf ? 6 : 8;
+  const spreadMultiplier = 1.4;
+  const minDotSize = 1.2;
+  const maxDotSizeMultiplier = 2.5;
+  
+  for (let i = 0; i < particleCount; i++) {
+    // Position aléatoire avec spread constant
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * size * spreadMultiplier;
+    const offsetX = Math.cos(angle) * distance;
+    const offsetY = Math.sin(angle) * distance;
+    
+    // Opacité uniforme
+    const alpha = 0.35 + Math.random() * 0.35;
+    
+    // Taille de particule proportionnelle
+    const dotSize = minDotSize + Math.random() * (size / maxDotSizeMultiplier);
+    
+    // Type de particule (70% lignes, 30% points)
+    const useLineParticle = Math.random() < 0.7;
+    
+    if (useLineParticle) {
+      // Particule ligne (effet spray principal)
+      const lineLength = 1 + Math.random() * 2.5;
+      const lineAngle = Math.random() * Math.PI * 2;
+      const endX = x + offsetX + Math.cos(lineAngle) * lineLength;
+      const endY = y + offsetY + Math.sin(lineAngle) * lineLength;
+      
+      const line = new Konva.Line({
+        points: [x + offsetX, y + offsetY, endX, endY],
+        stroke: color,
+        strokeWidth: dotSize * 0.8,
+        opacity: alpha,
+        lineCap: 'round',
+        lineJoin: 'round',
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(line);
+    } else {
+      // Particule point (variation)
+      const dot = new Konva.Circle({
+        x: x + offsetX,
+        y: y + offsetY,
+        radius: dotSize * 0.6,
+        fill: color,
+        opacity: alpha * 0.9,
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(dot);
+    }
   }
+  
   layer.batchDraw();
 }
 
@@ -504,40 +361,21 @@ socket.on('deleteShape', ({ id }) => {
   if (shape) {
     shape.destroy();
     layer.draw();
-    console.log(`🧽 Shape deleted: ${id} (type: ${shape.isPermanentTrace ? 'permanent trace' : 'normal'})`);
   }
 });
 
-// Clear canvas avec logs debug
 socket.on('clearCanvas', () => {
-  const childrenBefore = layer.getChildren().length;
-  const permanentTraces = layer.getChildren().filter(child => child.isPermanentTrace).length;
-  const normalShapes = childrenBefore - permanentTraces;
-  
-  console.log(`🧼 INDEX RECEIVED clearCanvas event:`);
-  console.log(`   - Total elements before: ${childrenBefore}`);
-  console.log(`   - Permanent traces: ${permanentTraces}`);
-  console.log(`   - Normal shapes: ${normalShapes}`);
-  console.log(`   - Socket ID: ${socket.id}`);
-  
-  layer.destroyChildren(); // ✅ Supprime TOUT (y compris tracés permanents)
-  brushManager.clearEverything(); // ✅ Clear complet du BrushManager
+  layer.destroyChildren();
+  brushManager.clearEverything();
   layer.draw();
-  
-  const childrenAfter = layer.getChildren().length;
-  console.log(`🧼 INDEX clearCanvas COMPLETE:`);
-  console.log(`   - Elements after: ${childrenAfter}`);
-  console.log(`   - Successfully cleared: ${childrenBefore - childrenAfter} elements`);
 });
 
 socket.on('restoreShapes', (shapes) => {
-  const childrenCount = layer.getChildren().length;
   layer.destroyChildren();
   brushManager.clearEverything();
   
   shapes.forEach(data => {
     if (data.type === 'permanentTrace') {
-      // ✅ Restaurer les tracés permanents
       let element;
       
       switch(data.shapeType) {
@@ -561,7 +399,6 @@ socket.on('restoreShapes', (shapes) => {
         layer.add(element);
       }
     } else {
-      // Restaurer tracé normal
       const line = new Konva.Line({
         id: data.id,
         points: data.points,
@@ -575,8 +412,6 @@ socket.on('restoreShapes', (shapes) => {
     }
   });
   layer.draw();
-  
-  console.log(`↶ Restored ${shapes.length} shapes after undo (cleared ${childrenCount} first)`);
 });
 
 socket.on('shapeCreate', data => {
@@ -603,14 +438,12 @@ socket.on('shapeCreate', data => {
   }
 });
 
-// Reset des brush effects par admin (garde les tracés permanents)
 socket.on('adminResetBrushEffects', () => {
   brushManager.clearAllEffects();
   showUndoNotification('Effets réinitialisés ✨');
-  console.log('🎨 Admin reset: Temporary effects cleared, permanent traces kept');
 });
 
 // Initialisation du curseur
 updateCursor();
 
-console.log('✅ App.js V3 loaded with ConnectionManager + Zoom');
+console.log('✅ App.js V3.1 loaded - Unified texture rendering mobile/PC');
