@@ -7,6 +7,13 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     /* CORRECTION CANVAS */
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #111;
+    }
+
     #canvas-container {
       width: 100vw !important;
       height: 100vh !important;
@@ -15,38 +22,72 @@
       left: 0 !important;
       z-index: 1 !important;
       background-color: transparent !important;
+      cursor: grab;
     }
 
-    /* 👑 ADMIN TOOLBAR CORRIGÉE */
+    #canvas-container.grabbing {
+      cursor: grabbing;
+    }
+
+    /* 👁️ BOUTON TOGGLE UI */
+    #toggle-ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 2000;
+      width: 50px;
+      height: 50px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(255,140,0,0.95), rgba(255,100,0,0.95));
+      color: white;
+      cursor: pointer;
+      font-size: 24px;
+      border: 3px solid rgba(255,140,0,0.5);
+      box-shadow: 0 4px 15px rgba(255,140,0,0.4);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #toggle-ui:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(255,140,0,0.6);
+    }
+
+    #toggle-ui:active {
+      transform: scale(0.95);
+    }
+
+    /* 👑 ADMIN TOOLBAR */
     .admin-toolbar {
       position: fixed;
-      top: 50px;
+      top: 80px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       gap: 6px;
       align-items: center;
-      padding: 6px 10px;
+      padding: 8px 12px;
       background-color: rgba(255, 140, 0, 0.95);
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       z-index: 1000;
       backdrop-filter: blur(10px);
       border: 2px solid rgba(255, 140, 0, 0.5);
-      
-      /* 🔧 CORRECTION - dimensions contrôlées */
       width: auto;
       max-width: 90vw;
       height: auto;
-      max-height: 60px;
       flex-wrap: nowrap;
       pointer-events: auto;
+      transition: opacity 0.3s ease, transform 0.3s ease;
     }
     
     .admin-toolbar .tool-btn {
-      width: 36px;
-      height: 36px;
-      font-size: 16px;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
       border: none;
       border-radius: 6px;
       background-color: rgba(0, 0, 0, 0.7);
@@ -71,174 +112,27 @@
     
     .divider {
       width: 1px;
-      height: 24px;
+      height: 28px;
       background-color: rgba(0, 0, 0, 0.5);
-      margin: 0 3px;
+      margin: 0 4px;
       flex-shrink: 0;
     }
     
     .admin-badge {
       position: fixed;
-      top: 10px;
+      top: 70px;
       left: 10px;
       background: rgba(255, 140, 0, 0.95);
       color: white;
-      padding: 6px 12px;
+      padding: 8px 16px;
       border-radius: 20px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       z-index: 1001;
       backdrop-filter: blur(10px);
       border: 2px solid rgba(255, 140, 0, 0.5);
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    /* 🎯 TOOLBAR V3 PUBLIQUE */
-    .toolbar-v3 {
-      position: fixed;
-      bottom: 8px;
-      left: 8px;
-      right: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      background-color: rgba(20, 20, 20, 0.95);
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-      z-index: 999;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .toolbar-row-tools {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-
-    .toolbar-row-tools::-webkit-scrollbar {
-      display: none;
-    }
-    
-    .toolbar-v3 .tool-btn {
-      min-width: 40px;
-      width: 40px;
-      min-height: 40px;
-      height: 40px;
-      font-size: 18px;
-      border: none;
-      border-radius: 6px;
-      background-color: #444;
-      color: white;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-    
-    .toolbar-v3 .tool-btn:hover {
-      background-color: #666;
-      transform: scale(1.05);
-    }
-    
-    .toolbar-v3 .tool-btn.active {
-      background-color: #6b5bff;
-      box-shadow: 0 0 8px rgba(107, 91, 255, 0.5);
-    }
-
-    .toolbar-row-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .size-control {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.05);
-      padding: 8px 12px;
-      border-radius: 8px;
-    }
-
-    .size-label {
-      color: #ccc;
-      font-size: 12px;
-      font-weight: 600;
-      white-space: nowrap;
-      min-width: 35px;
-    }
-
-    #size-slider-v3 {
-      flex: 1;
-      height: 8px;
-      background: linear-gradient(to right, 
-        rgba(107, 91, 255, 0.3) 0%, 
-        rgba(107, 91, 255, 0.8) 100%
-      );
-      border-radius: 4px;
-      outline: none;
-      -webkit-appearance: none;
-      appearance: none;
-      cursor: pointer;
-    }
-
-    #size-slider-v3::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #6b5bff;
-      cursor: pointer;
-      border: 3px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    #size-slider-v3::-moz-range-thumb {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #6b5bff;
-      cursor: pointer;
-      border: 3px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    .zoom-controls {
-      display: flex;
-      gap: 4px;
-      background: rgba(255,255,255,0.05);
-      padding: 4px;
-      border-radius: 8px;
-    }
-
-    .zoom-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
-      border: none;
-      border-radius: 6px;
-      background-color: #444;
-      color: white;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-
-    .zoom-btn:active {
-      transform: scale(0.95);
-      background-color: #666;
+      transition: opacity 0.3s ease;
     }
 
     /* 📊 STATUS BAR */
@@ -250,6 +144,7 @@
       flex-direction: column;
       gap: 6px;
       z-index: 1002;
+      transition: opacity 0.3s ease;
     }
 
     .status-indicator {
@@ -274,13 +169,91 @@
       font-weight: 600;
       font-family: monospace;
     }
+
+    /* 🗺️ MINIMAP */
+    #minimap-container {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 200px;
+      height: 150px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid rgba(255, 140, 0, 0.5);
+      border-radius: 8px;
+      z-index: 1001;
+      overflow: hidden;
+      transition: opacity 0.3s ease;
+    }
+
+    #minimap {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .admin-toolbar {
+        top: 70px;
+        padding: 6px 8px;
+        gap: 4px;
+        flex-wrap: wrap;
+        max-width: calc(100% - 80px);
+      }
+      
+      .admin-toolbar .tool-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+      }
+      
+      .divider {
+        height: 24px;
+      }
+
+      #toggle-ui {
+        width: 45px;
+        height: 45px;
+        font-size: 20px;
+      }
+      
+      #minimap-container {
+        width: 150px;
+        height: 100px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .admin-toolbar {
+        top: 65px;
+        gap: 3px;
+        padding: 4px 6px;
+      }
+      
+      .admin-toolbar .tool-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+      
+      .divider {
+        height: 20px;
+        margin: 0 2px;
+      }
+    }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
 
-  <div class="admin-badge">👑 MODE ADMIN</div>
+  <!-- 👁️ BOUTON TOGGLE UI -->
+  <button id="toggle-ui" title="Masquer/Afficher UI (Touche H)">👁️</button>
 
+  <!-- 👑 BADGE ADMIN -->
+  <div class="admin-badge">
+    👑 ADMIN MODE - Vue d'ensemble
+  </div>
+
+  <!-- 📊 BARRE D'ÉTAT -->
   <div class="status-bar">
     <div id="connection-indicator" class="status-indicator">
       <span style="font-size: 16px;">●</span>
@@ -292,45 +265,31 @@
     </div>
   </div>
 
+  <!-- 👑 TOOLBAR ADMIN -->
   <div class="admin-toolbar">
-    <button id="pan" class="tool-btn active" title="Déplacement">✋</button>
-    <button id="zoom-in" class="tool-btn" title="Zoom +">🔍+</button>
-    <button id="zoom-out" class="tool-btn" title="Zoom -">🔍-</button>
-    <button id="reset-zoom" class="tool-btn" title="Reset vue">🎯</button>
+    <button id="zoom-in" class="tool-btn" title="Zoom + (Molette)">🔍+</button>
+    <button id="zoom-out" class="tool-btn" title="Zoom - (Molette)">🔍-</button>
+    <button id="reset-zoom" class="tool-btn active" title="Reset vue">🎯</button>
+
     <div class="divider"></div>
-    <button id="eraser" class="tool-btn" title="Gomme objet">🧽</button>
-    <button id="reset-effects" class="tool-btn" title="Reset effets">✨</button>
-    <button id="clear-canvas" class="tool-btn" title="Clear TOUT">🧼</button>
+
+    <button id="eraser" class="tool-btn" title="Supprimer objet (Clic)">🧽</button>
+    <button id="reset-effects" class="tool-btn" title="Reset effets (Ctrl+Shift+E)">✨</button>
+    <button id="clear-canvas" class="tool-btn" title="Clear TOUT (Ctrl+Shift+R)">🧼</button>
+    
     <div class="divider"></div>
-    <button id="undo" class="tool-btn" title="Undo global">↶</button>
+    
+    <button id="undo" class="tool-btn" title="Undo global (Ctrl+Z)">↶</button>
     <button id="export" class="tool-btn" title="Exporter PNG">📷</button>
     <button id="back-home" class="tool-btn" title="Retour public">🏠</button>
   </div>
 
-  <div class="toolbar-v3">
-    <div class="toolbar-row-tools">
-      <button id="brush" class="tool-btn" title="Pinceau">🖋️</button>
-      <button id="texture" class="tool-btn" title="Spray">🖌️</button>
-      <button id="sparkles" class="tool-btn" title="Paillettes">✨</button>
-      <button id="watercolor" class="tool-btn" title="Aquarelle">💧</button>
-      <button id="neon" class="tool-btn" title="Néon">🌟</button>
-      <button id="fire" class="tool-btn" title="Feu">🔥</button>
-      <button id="electric" class="tool-btn" title="Électrique">⚡</button>
-      <button id="petals" class="tool-btn" title="Pétales">🌸</button>
-    </div>
-    <div class="toolbar-row-controls">
-      <div class="size-control">
-        <span class="size-label" id="size-value">4px</span>
-        <input type="range" id="size-slider-v3" min="1" max="20" value="4" />
-      </div>
-      <div class="zoom-controls">
-        <button id="zoom-out-public" class="zoom-btn">🔍-</button>
-        <button id="zoom-reset-public" class="zoom-btn">⚫</button>
-        <button id="zoom-in-public" class="zoom-btn">🔍+</button>
-      </div>
-    </div>
+  <!-- 🗺️ MINIMAP -->
+  <div id="minimap-container">
+    <canvas id="minimap"></canvas>
   </div>
 
+  <!-- SCRIPTS -->
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="connectionManager.js"></script>

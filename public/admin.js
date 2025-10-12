@@ -1,4 +1,4 @@
-// public/admin.js V3.1 - Rendu identique à public + pouvoirs admin + texture unifiée
+// public/admin.js V4.0 - ADMIN VIEW ONLY (pas de dessin, juste navigation)
 const socket = io({
   reconnection: true,
   reconnectionDelay: 1000,
@@ -8,11 +8,17 @@ const socket = io({
   transports: ['websocket', 'polling']
 });
 
+// Canvas énorme pour vue d'ensemble
+const CANVAS_WIDTH = 10000;
+const CANVAS_HEIGHT = 10000;
+
 const stage = new Konva.Stage({
   container: 'canvas-container',
   width: window.innerWidth,
-  height: window.innerHeight
+  height: window.innerHeight,
+  draggable: true // ✅ Toujours draggable pour l'admin
 });
+
 const layer = new Konva.Layer();
 stage.add(layer);
 
@@ -21,270 +27,85 @@ window.stage = stage;
 // 🌐 Initialiser ConnectionManager
 const connectionManager = new ConnectionManager(socket);
 
-// ✅ Initialiser le BrushManager unifié (MÊME RENDU que public)
+// ✅ Initialiser le BrushManager (pour recevoir les effets, mais pas pour dessiner)
 const brushManager = new BrushManager(layer, socket);
 
-let currentTool = 'pan';
-let currentColor = '#FFFFFF';
-let currentSize = parseInt(document.getElementById('size-slider-v3').value, 10);
-let currentZoom = 1;
-let isDrawing = false;
-let lastLine;
-let currentId;
-let lastPanPos = null;
+let currentZoom = 0.5; // Zoom initial pour voir plus large
+let currentTool = 'view'; // Mode visualisation uniquement
 
-// === UTILITAIRES (identiques à app.js) ===
-function throttle(func, wait) {
-  let lastTime = 0;
-  return function(...args) {
-    const now = Date.now();
-    if (now - lastTime >= wait) {
-      lastTime = now;
-      func.apply(this, args);
-    }
-  };
-}
-
+// === UTILITAIRES ===
 function generateId() {
   return 'shape_' + Date.now() + '_' + Math.round(Math.random() * 10000);
 }
 
-function getPressure(evt) {
-  if (evt.originalEvent && evt.originalEvent.pressure !== undefined) {
-    return Math.max(0.1, evt.originalEvent.pressure);
-  }
-  return 1;
+// === 🗺️ MINIMAP ===
+const minimapCanvas = document.getElementById('minimap');
+const minimapCtx = minimapCanvas.getContext('2d');
+const minimapContainer = document.getElementById('minimap-container');
+
+function updateMinimap() {
+  if (!minimapCanvas) return;
+  
+  minimapCanvas.width = minimapContainer.clientWidth;
+  minimapCanvas.height = minimapContainer.clientHeight;
+  
+  const scaleX = minimapCanvas.width / CANVAS_WIDTH;
+  const scaleY = minimapCanvas.height / CANVAS_HEIGHT;
+  
+  // Fond
+  minimapCtx.fillStyle = '#111';
+  minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+  
+  // Viewport actuel
+  const viewX = -stage.x() / stage.scaleX();
+  const viewY = -stage.y() / stage.scaleY();
+  const viewW = stage.width() / stage.scaleX();
+  const viewH = stage.height() / stage.scaleY();
+  
+  minimapCtx.strokeStyle = 'rgba(255, 140, 0, 0.8)';
+  minimapCtx.lineWidth = 2;
+  minimapCtx.strokeRect(
+    viewX * scaleX,
+    viewY * scaleY,
+    viewW * scaleX,
+    viewH * scaleY
+  );
+  
+  // Dessins (approximatif)
+  minimapCtx.fillStyle = 'rgba(107, 91, 255, 0.5)';
+  layer.children.forEach(shape => {
+    if (shape.getClassName() === 'Line') {
+      const points = shape.points();
+      if (points.length >= 2) {
+        const x = points[0] * scaleX;
+        const y = points[1] * scaleY;
+        minimapCtx.fillRect(x - 1, y - 1, 2, 2);
+      }
+    }
+  });
 }
 
-function getPressureSize(pressure) {
-  const minSize = Math.max(1, currentSize * 0.3);
-  const maxSize = currentSize * 1.5;
-  return minSize + (maxSize - minSize) * pressure;
-}
+// Mettre à jour la minimap régulièrement
+setInterval(updateMinimap, 500);
 
-function getScenePos(pointer) {
-  return {
-    x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY()
-  };
-}
+// === 🎯 PAS DE DESSIN - SEULEMENT NAVIGATION ===
 
-const emitDrawingThrottled = throttle((data) => {
-  connectionManager.emit('drawing', data);
-}, 50);
-
-const emitTextureThrottled = throttle((data) => {
-  connectionManager.emit('texture', data);
-}, 120); // Unifié mobile/PC
-
-// === 🎨 ÉVÉNEMENTS DE DESSIN (identiques à app.js) ===
-
+// Désactiver tous les événements de dessin
 stage.on('mousedown touchstart pointerdown', (evt) => {
-  const pointer = stage.getPointerPosition();
-  
-  if (currentTool === 'pan') {
-    lastPanPos = pointer;
-    isDrawing = false;
-    stage.container().style.cursor = 'grabbing';
-    return;
-  }
-  
-  if (currentTool === 'eraser-admin') {
-    return; // Géré par le clic
-  }
-  
-  const scenePos = getScenePos(pointer);
-  const pressure = getPressure(evt);
-  const pressureSize = getPressureSize(pressure);
-  
-  if (currentTool === 'texture') {
-    isDrawing = true;
-    currentId = generateId();
-    emitTextureThrottled({
-      x: scenePos.x,
-      y: scenePos.y,
-      color: currentColor,
-      size: pressureSize
-    });
-    createTextureEffect(scenePos.x, scenePos.y, currentColor, pressureSize);
-    return;
-  }
-
-  // ✅ BRUSH ANIMÉS - MÊME RENDU QUE PUBLIC
-  if (['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
-    isDrawing = true;
-    currentId = generateId();
-    brushManager.createAndEmitEffect(currentTool, scenePos.x, scenePos.y, currentColor, pressureSize);
-    return;
-  }
-  
-  // Mode brush normal
-  isDrawing = true;
-  currentId = generateId();
-  
-  lastLine = new Konva.Line({
-    id: currentId,
-    points: [scenePos.x, scenePos.y],
-    stroke: currentColor,
-    strokeWidth: pressureSize,
-    globalCompositeOperation: 'source-over',
-    lineCap: 'round',
-    lineJoin: 'round'
-  });
-  layer.add(lastLine);
-  
-  emitDrawingThrottled({
-    id: currentId,
-    points: [scenePos.x, scenePos.y],
-    stroke: currentColor,
-    strokeWidth: pressureSize,
-    globalCompositeOperation: 'source-over'
-  });
-});
-
-stage.on('mousemove touchmove pointermove', (evt) => {
-  const pointer = stage.getPointerPosition();
-  
-  if (currentTool === 'pan' && lastPanPos) {
-    const dx = pointer.x - lastPanPos.x;
-    const dy = pointer.y - lastPanPos.y;
-    stage.x(stage.x() + dx);
-    stage.y(stage.y() + dy);
-    stage.batchDraw();
-    lastPanPos = pointer;
-    return;
-  }
-  
-  if (!isDrawing) return;
-  
-  const scenePos = getScenePos(pointer);
-  const pressure = getPressure(evt);
-  const pressureSize = getPressureSize(pressure);
-  
-  if (currentTool === 'texture') {
-    emitTextureThrottled({
-      x: scenePos.x,
-      y: scenePos.y,
-      color: currentColor,
-      size: pressureSize
-    });
-    createTextureEffect(scenePos.x, scenePos.y, currentColor, pressureSize);
-    return;
-  }
-
-  // ✅ BRUSH ANIMÉS - MÊME RENDU
-  if (['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
-    brushManager.createAndEmitEffect(currentTool, scenePos.x, scenePos.y, currentColor, pressureSize);
-    return;
-  }
-  
-  if (lastLine) {
-    lastLine.points(lastLine.points().concat([scenePos.x, scenePos.y]));
-    lastLine.strokeWidth(pressureSize);
-    layer.batchDraw();
-    
-    emitDrawingThrottled({
-      id: currentId,
-      points: lastLine.points(),
-      stroke: lastLine.stroke(),
-      strokeWidth: pressureSize,
-      globalCompositeOperation: lastLine.globalCompositeOperation()
-    });
-  }
+  // ✅ Admin ne peut PAS dessiner, seulement naviguer
+  // Le draggable est géré automatiquement par Konva
+  stage.container().style.cursor = 'grabbing';
 });
 
 stage.on('mouseup touchend pointerup', () => {
-  if (currentTool === 'pan') {
-    lastPanPos = null;
-    stage.container().style.cursor = 'grab';
-    return;
-  }
-
-  if (!isDrawing) return;
-  isDrawing = false;
-  
-  if (currentTool === 'texture' || ['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
-    return;
-  }
-  
-  if (lastLine) {
-    connectionManager.emit('draw', {
-      id: currentId,
-      points: lastLine.points(),
-      stroke: lastLine.stroke(),
-      strokeWidth: lastLine.strokeWidth(),
-      globalCompositeOperation: lastLine.globalCompositeOperation()
-    });
-  }
+  stage.container().style.cursor = 'grab';
 });
 
-// === EFFET TEXTURE UNIFIÉ (identique mobile/PC) ===
-function createTextureEffect(x, y, color, size) {
-  // Détection device pour adapter les performances
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isLowPerf = isMobile || navigator.hardwareConcurrency <= 2;
-  
-  // Paramètres unifiés mais adaptatifs
-  const particleCount = isLowPerf ? 6 : 8;
-  const spreadMultiplier = 1.4;
-  const minDotSize = 1.2;
-  const maxDotSizeMultiplier = 2.5;
-  
-  for (let i = 0; i < particleCount; i++) {
-    // Position aléatoire avec spread constant
-    const angle = Math.random() * Math.PI * 2;
-    const distance = Math.random() * size * spreadMultiplier;
-    const offsetX = Math.cos(angle) * distance;
-    const offsetY = Math.sin(angle) * distance;
-    
-    // Opacité uniforme
-    const alpha = 0.35 + Math.random() * 0.35;
-    
-    // Taille de particule proportionnelle
-    const dotSize = minDotSize + Math.random() * (size / maxDotSizeMultiplier);
-    
-    // Type de particule (70% lignes, 30% points)
-    const useLineParticle = Math.random() < 0.7;
-    
-    if (useLineParticle) {
-      // Particule ligne (effet spray principal)
-      const lineLength = 1 + Math.random() * 2.5;
-      const lineAngle = Math.random() * Math.PI * 2;
-      const endX = x + offsetX + Math.cos(lineAngle) * lineLength;
-      const endY = y + offsetY + Math.sin(lineAngle) * lineLength;
-      
-      const line = new Konva.Line({
-        points: [x + offsetX, y + offsetY, endX, endY],
-        stroke: color,
-        strokeWidth: dotSize * 0.8,
-        opacity: alpha,
-        lineCap: 'round',
-        lineJoin: 'round',
-        hitStrokeWidth: 0,
-        listening: false
-      });
-      layer.add(line);
-    } else {
-      // Particule point (variation)
-      const dot = new Konva.Circle({
-        x: x + offsetX,
-        y: y + offsetY,
-        radius: dotSize * 0.6,
-        fill: color,
-        opacity: alpha * 0.9,
-        hitStrokeWidth: 0,
-        listening: false
-      });
-      layer.add(dot);
-    }
-  }
-  
-  layer.batchDraw();
-}
-
-// === 🌐 SOCKET LISTENERS (identiques à app.js) ===
+// === 🌐 SOCKET LISTENERS (RECEVOIR tous les dessins) ===
 
 socket.on('initShapes', shapes => {
+  console.log(`📥 ADMIN: Loading ${shapes.length} shapes...`);
+  
   shapes.forEach(data => {
     if (data.type === 'permanentTrace') {
       let element;
@@ -322,9 +143,11 @@ socket.on('initShapes', shapes => {
       layer.add(line);
     }
   });
-  layer.draw();
   
-  console.log(`✅ ADMIN: Loaded ${shapes.length} shapes`);
+  layer.draw();
+  updateMinimap();
+  
+  console.log(`✅ ADMIN: ${shapes.length} shapes loaded`);
 });
 
 socket.on('drawing', data => {
@@ -352,11 +175,26 @@ socket.on('brushEffect', (data) => {
 });
 
 socket.on('texture', data => {
-  createTextureEffect(data.x, data.y, data.color, data.size);
-});
-
-socket.on('cleanupUserEffects', (data) => {
-  brushManager.cleanupUserEffects(data.socketId);
+  // Créer l'effet texture visuellement
+  const particleCount = 4;
+  for (let i = 0; i < particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * data.size * 1.4;
+    const offsetX = Math.cos(angle) * distance;
+    const offsetY = Math.sin(angle) * distance;
+    
+    const dot = new Konva.Circle({
+      x: data.x + offsetX,
+      y: data.y + offsetY,
+      radius: 1 + Math.random() * 2,
+      fill: data.color,
+      opacity: 0.4 + Math.random() * 0.3,
+      hitStrokeWidth: 0,
+      listening: false
+    });
+    layer.add(dot);
+  }
+  layer.batchDraw();
 });
 
 socket.on('draw', data => {
@@ -379,6 +217,7 @@ socket.on('draw', data => {
     layer.add(line);
   }
   layer.draw();
+  updateMinimap();
 });
 
 socket.on('deleteShape', ({ id }) => {
@@ -386,6 +225,7 @@ socket.on('deleteShape', ({ id }) => {
   if (shape) {
     shape.destroy();
     layer.draw();
+    updateMinimap();
   }
 });
 
@@ -393,6 +233,7 @@ socket.on('clearCanvas', () => {
   layer.destroyChildren();
   brushManager.clearEverything();
   layer.draw();
+  updateMinimap();
 });
 
 socket.on('restoreShapes', (shapes) => {
@@ -437,6 +278,7 @@ socket.on('restoreShapes', (shapes) => {
     }
   });
   layer.draw();
+  updateMinimap();
 });
 
 socket.on('adminResetBrushEffects', () => {
@@ -444,16 +286,17 @@ socket.on('adminResetBrushEffects', () => {
   layer.batchDraw();
 });
 
-// Fonction pour afficher une notification admin
+// Fonction notification admin
 function showAdminNotification(message) {
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
     top: 20px;
-    right: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     background-color: rgba(255, 140, 0, 0.95);
     color: white;
-    padding: 12px 20px;
+    padding: 12px 24px;
     border-radius: 8px;
     font-size: 14px;
     font-weight: bold;
@@ -462,7 +305,7 @@ function showAdminNotification(message) {
     border-left: 4px solid #ff8c00;
     animation: adminNotification 2s ease-out;
   `;
-  notification.textContent = `👑 ADMIN: ${message}`;
+  notification.textContent = `👑 ${message}`;
   document.body.appendChild(notification);
   
   setTimeout(() => {
@@ -472,44 +315,19 @@ function showAdminNotification(message) {
   }, 2000);
 }
 
-// Style CSS pour les notifications admin
 const adminStyle = document.createElement('style');
 adminStyle.textContent = `
   @keyframes adminNotification {
-    0% {
-      opacity: 0;
-      transform: translateX(100px);
-    }
-    20% {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    80% {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    100% {
-      opacity: 0;
-      transform: translateX(100px);
-    }
+    0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
   }
 `;
 document.head.appendChild(adminStyle);
 
-// === 🎨 INTERFACE UTILISATEUR ===
+// === 🎨 INTERFACE ADMIN ===
 
-// Outils de dessin publics (toolbar du bas)
-document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentTool = btn.id;
-    updateCursor();
-  });
-});
-
-// Outils admin (toolbar du haut)
-const panBtn = document.getElementById('pan');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const resetZoomBtn = document.getElementById('reset-zoom');
@@ -520,129 +338,10 @@ const undoBtn = document.getElementById('undo');
 const exportBtn = document.getElementById('export');
 const backHomeBtn = document.getElementById('back-home');
 
-// Slider d'épaisseur V3
-const sizeSlider = document.getElementById('size-slider-v3');
-const sizeValue = document.getElementById('size-value');
-
-sizeSlider.addEventListener('input', e => {
-  currentSize = parseInt(e.target.value, 10);
-  sizeValue.textContent = currentSize + 'px';
-  
-  const percent = (currentSize - 1) / 19 * 100;
-  sizeSlider.style.background = `linear-gradient(to right, 
-    rgba(107, 91, 255, 0.8) 0%, 
-    rgba(107, 91, 255, 0.8) ${percent}%, 
-    rgba(107, 91, 255, 0.3) ${percent}%, 
-    rgba(107, 91, 255, 0.3) 100%
-  )`;
-});
-
 // === 👑 POUVOIRS ADMIN ===
 
-// Pan admin
-panBtn?.addEventListener('click', () => {
-  setActiveAdminButton(panBtn);
-  currentTool = 'pan';
-  stage.draggable(true);
-  stage.container().style.cursor = 'grab';
-});
-
-// Zoom admin
+// Zoom
 function setZoomAdmin(newZoom) {
-  newZoom = Math.max(0.1, Math.min(5, newZoom));
-  const oldScale = stage.scaleX();
-  stage.scale({ x: newZoom, y: newZoom });
-  stage.batchDraw();
-  currentZoom = newZoom;
-}
-
-zoomInBtn?.addEventListener('click', () => {
-  setActiveAdminButton(zoomInBtn);
-  setZoomAdmin(currentZoom * 1.2);
-});
-
-zoomOutBtn?.addEventListener('click', () => {
-  setActiveAdminButton(zoomOutBtn);
-  setZoomAdmin(currentZoom / 1.2);
-});
-
-resetZoomBtn?.addEventListener('click', () => {
-  setActiveAdminButton(panBtn);
-  stage.scale({ x: 1, y: 1 });
-  stage.position({ x: 0, y: 0 });
-  stage.batchDraw();
-  stage.draggable(true);
-  currentZoom = 1;
-  currentTool = 'pan';
-  stage.container().style.cursor = 'grab';
-});
-
-// Gomme objet admin
-eraserBtn?.addEventListener('click', () => {
-  setActiveAdminButton(eraserBtn);
-  currentTool = 'eraser-admin';
-  stage.draggable(false);
-  stage.container().style.cursor = 'crosshair';
-});
-
-// Reset effets
-resetEffectsBtn?.addEventListener('click', () => {
-  setActiveAdminButton(resetEffectsBtn);
-  brushManager.clearAllEffects();
-  layer.batchDraw();
-  connectionManager.emit('adminResetBrushEffects');
-  showAdminNotification('Effets Reset Globalement ✨');
-});
-
-// Clear canvas
-clearBtn?.addEventListener('click', () => {
-  if (confirm('ADMIN: Effacer TOUT pour TOUS les utilisateurs ?')) {
-    setActiveAdminButton(clearBtn);
-    
-    layer.destroyChildren();
-    brushManager.clearEverything();
-    layer.draw();
-    
-    connectionManager.emit('clearCanvas');
-    connectionManager.emit('adminResetBrushEffects');
-    
-    showAdminNotification('Reset COMPLET Global 🧼✨');
-  }
-});
-
-// Undo admin
-undoBtn?.addEventListener('click', () => {
-  connectionManager.emit('undo');
-  showAdminNotification('Undo Global ↶ (Limité à 2 actions)');
-});
-
-// Export PNG
-exportBtn?.addEventListener('click', () => {
-  setActiveAdminButton(exportBtn);
-  const uri = stage.toDataURL({ pixelRatio: 4 });
-  const link = document.createElement('a');
-  link.download = 'picturavox-canvas.png';
-  link.href = uri;
-  link.click();
-});
-
-// Retour public
-backHomeBtn?.addEventListener('click', () => {
-  window.location.href = '/';
-});
-
-function setActiveAdminButton(activeBtn) {
-  [panBtn, zoomInBtn, zoomOutBtn, resetZoomBtn, eraserBtn, resetEffectsBtn, clearBtn, undoBtn, exportBtn, backHomeBtn]
-    .forEach(btn => btn?.classList.remove('active'));
-  activeBtn?.classList.add('active');
-}
-
-// === 🔍 ZOOM CONTROLS PUBLICS (toolbar du bas) ===
-const zoomInPublic = document.getElementById('zoom-in-public');
-const zoomOutPublic = document.getElementById('zoom-out-public');
-const zoomResetPublic = document.getElementById('zoom-reset-public');
-
-function setZoom(newZoom) {
   newZoom = Math.max(0.1, Math.min(5, newZoom));
   
   const center = {
@@ -666,27 +365,101 @@ function setZoom(newZoom) {
   stage.batchDraw();
   
   currentZoom = newZoom;
-  
-  zoomResetPublic.textContent = Math.round(newZoom * 100) + '%';
-  zoomResetPublic.style.fontSize = '10px';
-  zoomResetPublic.style.fontWeight = '600';
+  updateMinimap();
 }
 
-zoomInPublic?.addEventListener('click', () => {
-  setZoom(currentZoom * 1.2);
+zoomInBtn?.addEventListener('click', () => {
+  setZoomAdmin(currentZoom * 1.3);
+  showAdminNotification('Zoom +');
 });
 
-zoomOutPublic?.addEventListener('click', () => {
-  setZoom(currentZoom / 1.2);
+zoomOutBtn?.addEventListener('click', () => {
+  setZoomAdmin(currentZoom / 1.3);
+  showAdminNotification('Zoom -');
 });
 
-zoomResetPublic?.addEventListener('click', () => {
-  stage.scale({ x: 1, y: 1 });
-  stage.position({ x: 0, y: 0 });
+resetZoomBtn?.addEventListener('click', () => {
+  stage.scale({ x: 0.5, y: 0.5 });
+  stage.position({ x: stage.width() / 4, y: stage.height() / 4 });
   stage.batchDraw();
-  currentZoom = 1;
-  zoomResetPublic.textContent = '⚫';
-  zoomResetPublic.style.fontSize = '18px';
+  currentZoom = 0.5;
+  updateMinimap();
+  showAdminNotification('Vue réinitialisée');
+});
+
+// Gomme objet
+eraserBtn?.addEventListener('click', () => {
+  currentTool = currentTool === 'eraser' ? 'view' : 'eraser';
+  eraserBtn.classList.toggle('active');
+  stage.container().style.cursor = currentTool === 'eraser' ? 'crosshair' : 'grab';
+  showAdminNotification(currentTool === 'eraser' ? 'Mode suppression activé' : 'Mode navigation');
+});
+
+// Clic pour supprimer
+stage.on('click', evt => {
+  if (currentTool === 'eraser') {
+    const target = evt.target;
+    
+    if (target !== stage && target.id()) {
+      const id = target.id();
+      
+      target.stroke('#ff0000');
+      target.opacity(0.5);
+      layer.draw();
+      
+      setTimeout(() => {
+        target.destroy();
+        layer.draw();
+        updateMinimap();
+        connectionManager.emit('deleteShape', { id });
+        showAdminNotification('Élément supprimé 🧽');
+      }, 150);
+    }
+  }
+});
+
+// Reset effets
+resetEffectsBtn?.addEventListener('click', () => {
+  brushManager.clearAllEffects();
+  layer.batchDraw();
+  connectionManager.emit('adminResetBrushEffects');
+  showAdminNotification('Effets réinitialisés ✨');
+});
+
+// Clear canvas
+clearBtn?.addEventListener('click', () => {
+  if (confirm('⚠️ ADMIN: Effacer TOUT pour TOUS les utilisateurs ?')) {
+    layer.destroyChildren();
+    brushManager.clearEverything();
+    layer.draw();
+    updateMinimap();
+    
+    connectionManager.emit('clearCanvas');
+    connectionManager.emit('adminResetBrushEffects');
+    
+    showAdminNotification('Canvas nettoyé 🧼');
+  }
+});
+
+// Undo
+undoBtn?.addEventListener('click', () => {
+  connectionManager.emit('undo');
+  showAdminNotification('Undo global ↶');
+});
+
+// Export PNG
+exportBtn?.addEventListener('click', () => {
+  const uri = stage.toDataURL({ pixelRatio: 2 });
+  const link = document.createElement('a');
+  link.download = `picturavox-admin-${Date.now()}.png`;
+  link.href = uri;
+  link.click();
+  showAdminNotification('Image exportée 📷');
+});
+
+// Retour public
+backHomeBtn?.addEventListener('click', () => {
+  window.location.href = '/';
 });
 
 // Zoom molette
@@ -715,80 +488,57 @@ stage.on('wheel', (e) => {
   stage.batchDraw();
   
   currentZoom = newScale;
-  zoomResetPublic.textContent = Math.round(newScale * 100) + '%';
-  zoomResetPublic.style.fontSize = '10px';
-  zoomResetPublic.style.fontWeight = '600';
+  updateMinimap();
 });
 
-// Gestion du curseur
-function updateCursor() {
-  const container = stage.container();
-  switch(currentTool) {
-    case 'pan':
-      container.style.cursor = 'grab';
-      break;
-    case 'eraser-admin':
-      container.style.cursor = 'crosshair';
-      break;
-    default:
-      container.style.cursor = 'crosshair';
+// === 👁️ TOGGLE UI ===
+let isUIVisible = true;
+
+function toggleUI() {
+  isUIVisible = !isUIVisible;
+  
+  const elementsToToggle = [
+    document.querySelector('.admin-toolbar'),
+    document.querySelector('.admin-badge'),
+    document.querySelector('.status-bar'),
+    document.getElementById('minimap-container')
+  ];
+  
+  elementsToToggle.forEach(el => {
+    if (el) {
+      el.style.opacity = isUIVisible ? '1' : '0';
+      el.style.pointerEvents = isUIVisible ? 'auto' : 'none';
+      el.style.transition = 'opacity 0.3s ease';
+    }
+  });
+  
+  const toggleBtn = document.getElementById('toggle-ui');
+  if (toggleBtn) {
+    toggleBtn.textContent = isUIVisible ? '👁️' : '👁️‍🗨️';
+    toggleBtn.style.opacity = '1';
+    toggleBtn.style.pointerEvents = 'auto';
+  }
+  
+  if (isUIVisible) {
+    showAdminNotification('UI visible');
   }
 }
 
-// Clic pour gomme objet admin
-stage.on('click', evt => {
-  if (currentTool === 'eraser-admin') {
-    const target = evt.target;
-    
-    if (target.getClassName() === 'Line' && target.id()) {
-      const shape = target;
-      const id = shape.id();
-      
-      shape.stroke('#ff0000');
-      shape.opacity(0.5);
-      layer.draw();
-      
-      setTimeout(() => {
-        shape.destroy();
-        layer.draw();
-        connectionManager.emit('deleteShape', { id });
-        console.log(`🧽 ADMIN: Deleted shape ${id}`);
-      }, 150);
-    }
-  }
-});
+document.getElementById('toggle-ui')?.addEventListener('click', toggleUI);
 
-// Feedback au survol en mode gomme admin
-stage.on('mouseover', evt => {
-  if (currentTool === 'eraser-admin') {
-    const target = evt.target;
-    if (target.getClassName() === 'Line' && target.id()) {
-      target.opacity(0.7);
-      target.stroke('#ff4444');
-      layer.draw();
-      stage.container().style.cursor = 'pointer';
-    }
-  }
-});
-
-stage.on('mouseout', evt => {
-  if (currentTool === 'eraser-admin') {
-    const target = evt.target;
-    if (target.getClassName() === 'Line' && target.id()) {
-      target.opacity(1);
-      target.stroke(target.attrs.stroke || target.stroke());
-      layer.draw();
-      stage.container().style.cursor = 'crosshair';
-    }
-  }
-});
-
-// === RACCOURCIS CLAVIER ADMIN ===
+// Raccourci H pour toggle UI
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'h' || e.key === 'H') {
+    if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      toggleUI();
+    }
+  }
+  
   if (e.ctrlKey && e.key === 'z') {
     e.preventDefault();
     connectionManager.emit('undo');
-    showAdminNotification('Undo Global ↶');
+    showAdminNotification('Undo global ↶');
   }
   
   if (e.ctrlKey && e.shiftKey && e.key === 'E') {
@@ -796,25 +546,29 @@ document.addEventListener('keydown', (e) => {
     brushManager.clearAllEffects();
     layer.batchDraw();
     connectionManager.emit('adminResetBrushEffects');
-    showAdminNotification('Effets Reset Globalement ✨');
+    showAdminNotification('Effets réinitialisés ✨');
   }
   
   if (e.ctrlKey && e.shiftKey && e.key === 'R') {
     e.preventDefault();
-    if (confirm('ADMIN: Reset COMPLET (dessins + effets) ?')) {
+    if (confirm('⚠️ ADMIN: Reset COMPLET ?')) {
       layer.destroyChildren();
       brushManager.clearEverything();
       layer.draw();
+      updateMinimap();
       connectionManager.emit('clearCanvas');
       connectionManager.emit('adminResetBrushEffects');
-      showAdminNotification('Reset COMPLET Global 🧼✨');
+      showAdminNotification('Reset complet 🧼✨');
     }
   }
 });
 
-// Initialisation
-stage.draggable(true);
-stage.container().style.cursor = 'grab';
-updateCursor();
+// Drag sur minimap
+stage.on('dragend', updateMinimap);
 
-console.log('✅ Admin.js V3.1 loaded - Unified texture rendering with public');
+// Initialisation
+stage.container().style.cursor = 'grab';
+updateMinimap();
+
+console.log('✅ Admin.js V4.0 - VIEW ONLY MODE - Press H to toggle UI');
+console.log('👑 Navigation: Drag canvas, Molette pour zoom, Clic pour supprimer en mode gomme');
