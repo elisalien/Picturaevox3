@@ -32,16 +32,22 @@ let currentTool = 'view';
 
 // === 🗺️ MINIMAP ===
 const minimapCanvas = document.getElementById('minimap');
-const minimapCtx = minimapCanvas.getContext('2d');
+const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
 const minimapContainer = document.getElementById('minimap-container');
 
-const CANVAS_VIRTUAL_SIZE = 5000;
+const CANVAS_VIRTUAL_SIZE = 8000; // Taille virtuelle du canvas
 
 function updateMinimap() {
-  if (!minimapCanvas || !minimapContainer) return;
+  if (!minimapCanvas || !minimapCtx || !minimapContainer) {
+    console.warn('⚠️ Minimap elements not found');
+    return;
+  }
   
+  // Forcer les dimensions du canvas
   const w = minimapContainer.clientWidth;
   const h = minimapContainer.clientHeight;
+  
+  if (w <= 0 || h <= 0) return;
   
   minimapCanvas.width = w;
   minimapCanvas.height = h;
@@ -49,43 +55,72 @@ function updateMinimap() {
   const scaleX = w / CANVAS_VIRTUAL_SIZE;
   const scaleY = h / CANVAS_VIRTUAL_SIZE;
   
-  // Fond
+  // Fond sombre
   minimapCtx.fillStyle = '#0a0a0a';
   minimapCtx.fillRect(0, 0, w, h);
   
-  // Viewport actuel
-  const viewX = -stage.x() / stage.scaleX();
-  const viewY = -stage.y() / stage.scaleY();
-  const viewW = stage.width() / stage.scaleX();
-  const viewH = stage.height() / stage.scaleY();
+  // Grille subtile
+  minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+  minimapCtx.lineWidth = 1;
+  const gridSize = 1000;
+  for (let x = 0; x < CANVAS_VIRTUAL_SIZE; x += gridSize) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(x * scaleX, 0);
+    minimapCtx.lineTo(x * scaleX, h);
+    minimapCtx.stroke();
+  }
+  for (let y = 0; y < CANVAS_VIRTUAL_SIZE; y += gridSize) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(0, y * scaleY);
+    minimapCtx.lineTo(w, y * scaleY);
+    minimapCtx.stroke();
+  }
   
-  minimapCtx.strokeStyle = 'rgba(0, 217, 255, 0.8)';
-  minimapCtx.lineWidth = 2;
-  minimapCtx.strokeRect(
-    viewX * scaleX,
-    viewY * scaleY,
-    viewW * scaleX,
-    viewH * scaleY
-  );
-  
-  // Dessins (points simplifiés)
-  minimapCtx.fillStyle = 'rgba(107, 91, 255, 0.6)';
+  // Dessins (tous les tracés)
+  minimapCtx.fillStyle = 'rgba(107, 91, 255, 0.7)';
   const children = layer.getChildren();
+  
   for (let i = 0; i < children.length; i++) {
     const shape = children[i];
-    if (shape.getClassName() === 'Line' && shape.points) {
+    
+    // Lignes classiques
+    if (shape.getClassName() === 'Line' && typeof shape.points === 'function') {
       const points = shape.points();
-      if (points.length >= 2) {
-        const x = points[0] * scaleX;
-        const y = points[1] * scaleY;
-        minimapCtx.fillRect(x - 1, y - 1, 2, 2);
+      if (points && points.length >= 2) {
+        const x = (points[0] + CANVAS_VIRTUAL_SIZE / 2) * scaleX;
+        const y = (points[1] + CANVAS_VIRTUAL_SIZE / 2) * scaleY;
+        minimapCtx.fillRect(x - 1, y - 1, 3, 3);
       }
     }
+    
+    // Cercles (texture, effets)
+    if (shape.getClassName() === 'Circle') {
+      const x = (shape.x() + CANVAS_VIRTUAL_SIZE / 2) * scaleX;
+      const y = (shape.y() + CANVAS_VIRTUAL_SIZE / 2) * scaleY;
+      minimapCtx.fillRect(x - 1, y - 1, 2, 2);
+    }
   }
+  
+  // Viewport actuel (zone visible)
+  const viewX = (-stage.x() / stage.scaleX() + CANVAS_VIRTUAL_SIZE / 2) * scaleX;
+  const viewY = (-stage.y() / stage.scaleY() + CANVAS_VIRTUAL_SIZE / 2) * scaleY;
+  const viewW = (stage.width() / stage.scaleX()) * scaleX;
+  const viewH = (stage.height() / stage.scaleY()) * scaleY;
+  
+  minimapCtx.strokeStyle = 'rgba(0, 217, 255, 0.9)';
+  minimapCtx.lineWidth = 2;
+  minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
+  
+  // Indicateur centre (origine)
+  const centerX = (CANVAS_VIRTUAL_SIZE / 2) * scaleX;
+  const centerY = (CANVAS_VIRTUAL_SIZE / 2) * scaleY;
+  minimapCtx.fillStyle = 'rgba(0, 217, 255, 0.5)';
+  minimapCtx.fillRect(centerX - 2, centerY - 2, 4, 4);
 }
 
-// Update minimap régulièrement
-setInterval(updateMinimap, 1000);
+// Update minimap régulièrement + au chargement
+setInterval(updateMinimap, 500);
+setTimeout(updateMinimap, 100); // Initial update
 
 // === 🎨 GESTION CANVAS ===
 
