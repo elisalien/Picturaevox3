@@ -38,18 +38,44 @@ function throttle(func, wait) {
   let lastTime = 0;
   return function(...args) {
     const now = Date.now();
-    if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-    e.preventDefault();
-    if (confirm('ADMIN: Reset COMPLET (dessins + effets) ?')) {
-      layer.destroyChildren();
-      brushManager.clearEverything();
-      layer.draw();
-      connectionManager.emit('clearCanvas');
-      connectionManager.emit('adminResetBrushEffects');
-      showAdminNotification('Reset COMPLET Global 🧼✨');
+    if (now - lastTime >= wait) {
+      lastTime = now;
+      func.apply(this, args);
     }
+  };
+}
+
+function generateId() {
+  return 'shape_' + Date.now() + '_' + Math.round(Math.random() * 10000);
+}
+
+function getPressure(evt) {
+  if (evt.originalEvent && evt.originalEvent.pressure !== undefined) {
+    return Math.max(0.1, evt.originalEvent.pressure);
   }
-});
+  return 1;
+}
+
+function getPressureSize(pressure) {
+  const minSize = Math.max(1, currentSize * 0.3);
+  const maxSize = currentSize * 1.5;
+  return minSize + (maxSize - minSize) * pressure;
+}
+
+function getScenePos(pointer) {
+  return {
+    x: (pointer.x - stage.x()) / stage.scaleX(),
+    y: (pointer.y - stage.y()) / stage.scaleY()
+  };
+}
+
+const emitDrawingThrottled = throttle((data) => {
+  connectionManager.emit('drawing', data);
+}, 50);
+
+const emitTextureThrottled = throttle((data) => {
+  connectionManager.emit('texture', data);
+}, 120); // Unifié mobile/PC
 
 // === 🎨 ÉVÉNEMENTS DE DESSIN (identiques à app.js) ===
 
@@ -470,50 +496,6 @@ adminStyle.textContent = `
 `;
 document.head.appendChild(adminStyle);
 
-// Initialisation
-stage.draggable(true);
-stage.container().style.cursor = 'grab';
-updateCursor();
-
-console.log('✅ Admin.js V3.1 loaded - Unified texture rendering with public'); (now - lastTime >= wait) {
-      lastTime = now;
-      func.apply(this, args);
-    }
-  };
-}
-
-function generateId() {
-  return 'shape_' + Date.now() + '_' + Math.round(Math.random() * 10000);
-}
-
-function getPressure(evt) {
-  if (evt.originalEvent && evt.originalEvent.pressure !== undefined) {
-    return Math.max(0.1, evt.originalEvent.pressure);
-  }
-  return 1;
-}
-
-function getPressureSize(pressure) {
-  const minSize = Math.max(1, currentSize * 0.3);
-  const maxSize = currentSize * 1.5;
-  return minSize + (maxSize - minSize) * pressure;
-}
-
-function getScenePos(pointer) {
-  return {
-    x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY()
-  };
-}
-
-const emitDrawingThrottled = throttle((data) => {
-  connectionManager.emit('drawing', data);
-}, 50);
-
-const emitTextureThrottled = throttle((data) => {
-  connectionManager.emit('texture', data);
-}, 120); // Unifié mobile/PC
-
 // === 🎨 INTERFACE UTILISATEUR ===
 
 // Outils de dessin publics (toolbar du bas)
@@ -829,3 +811,10 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// Initialisation
+stage.draggable(true);
+stage.container().style.cursor = 'grab';
+updateCursor();
+
+console.log('✅ Admin.js V3.1 loaded - Unified texture rendering with public');
