@@ -373,28 +373,31 @@
   <title>Admin — Picturævox</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* 👑 ADMIN TOOLBAR - Positionnée en haut */
+    /* 👑 ADMIN TOOLBAR - Positionnée en haut, compacte */
     .admin-toolbar {
       position: fixed;
-      top: 60px;
+      top: 50px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
-      padding: 8px 12px;
+      padding: 6px 10px;
       background-color: rgba(255, 140, 0, 0.95);
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       z-index: 1000;
       backdrop-filter: blur(10px);
       border: 2px solid rgba(255, 140, 0, 0.5);
+      width: auto;
+      max-width: none;  /* Pas de limitation de largeur */
+      pointer-events: auto;
     }
     
     .admin-toolbar .tool-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
+      width: 36px;
+      height: 36px;
+      font-size: 16px;
       border: none;
       border-radius: 6px;
       background-color: rgba(0, 0, 0, 0.7);
@@ -404,6 +407,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;  /* Ne se compresse pas */
     }
     
     .admin-toolbar .tool-btn:hover {
@@ -418,9 +422,10 @@
     
     .divider {
       width: 1px;
-      height: 30px;
+      height: 24px;
       background-color: rgba(0, 0, 0, 0.5);
-      margin: 0 4px;
+      margin: 0 3px;
+      flex-shrink: 0;
     }
     
     .admin-badge {
@@ -429,9 +434,9 @@
       left: 10px;
       background: rgba(255, 140, 0, 0.95);
       color: white;
-      padding: 8px 16px;
+      padding: 6px 12px;
       border-radius: 20px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       z-index: 1001;
       backdrop-filter: blur(10px);
@@ -470,6 +475,34 @@
 
     .toolbar-row-tools::-webkit-scrollbar {
       display: none;
+    }
+    
+    .toolbar-v3 .tool-btn {
+      min-width: 40px;
+      width: 40px;
+      min-height: 40px;
+      height: 40px;
+      font-size: 18px;
+      border: none;
+      border-radius: 6px;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    
+    .toolbar-v3 .tool-btn:hover {
+      background-color: #666;
+      transform: scale(1.05);
+    }
+    
+    .toolbar-v3 .tool-btn.active {
+      background-color: #6b5bff;
+      box-shadow: 0 0 8px rgba(107, 91, 255, 0.5);
     }
 
     .toolbar-row-controls {
@@ -603,20 +636,26 @@
     /* Mobile responsive */
     @media (max-width: 768px) {
       .admin-toolbar {
-        top: 50px;
-        padding: 6px 10px;
-        gap: 6px;
+        top: 45px;
+        padding: 5px 8px;
+        gap: 4px;
+        flex-wrap: wrap;
+        max-width: calc(100% - 20px);
       }
       
       .admin-toolbar .tool-btn {
-        width: 36px;
-        height: 36px;
-        font-size: 16px;
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+      
+      .divider {
+        height: 20px;
       }
       
       .admin-badge {
-        padding: 6px 12px;
-        font-size: 11px;
+        padding: 5px 10px;
+        font-size: 10px;
       }
 
       .toolbar-v3 {
@@ -643,6 +682,26 @@
         width: 38px;
         height: 38px;
         font-size: 16px;
+      }
+    }
+    
+    /* Très petits écrans */
+    @media (max-width: 480px) {
+      .admin-toolbar {
+        top: 40px;
+        gap: 3px;
+        padding: 4px 6px;
+      }
+      
+      .admin-toolbar .tool-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+      }
+      
+      .divider {
+        height: 18px;
+        margin: 0 2px;
       }
     }
   </style>
