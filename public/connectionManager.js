@@ -1,4 +1,4 @@
-// public/connectionManager.js - Gestion robuste de la connexion
+// public/connectionManager.js - Gestion robuste de la connexion avec support mobile amélioré
 class ConnectionManager {
   constructor(socket) {
     this.socket = socket;
@@ -11,8 +11,16 @@ class ConnectionManager {
     this.pingInterval = null;
     this.lastPingTime = Date.now();
     this.latency = 0;
-    
+    this.isMobile = this.detectMobile();
+    this.lastDisconnectTime = null;
+    this.wasDisconnectedRecently = false;
+
     this.init();
+  }
+
+  detectMobile() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
   }
 
   init() {
@@ -40,17 +48,91 @@ class ConnectionManager {
     this.reconnectAttempts = 0;
     this.updateConnectionStatus('connected');
     this.flushActionQueue();
+
+    // Si on se reconnecte après une déconnexion récente sur mobile
+    if (this.wasDisconnectedRecently && this.isMobile) {
+      this.showMobileReconnectedNotification();
+      this.wasDisconnectedRecently = false;
+    }
   }
 
   handleDisconnect(reason) {
     console.warn('⚠️ Disconnected:', reason);
     this.isConnected = false;
+    this.lastDisconnectTime = Date.now();
+    this.wasDisconnectedRecently = true;
     this.updateConnectionStatus('disconnected', reason);
-    
-    // Afficher popup si déconnexion inattendue
-    if (reason === 'io server disconnect' || reason === 'transport close') {
-      this.showReconnectionPopup();
+
+    // Message différent selon le type d'appareil
+    if (this.isMobile) {
+      this.showMobileDisconnectionAlert(reason);
+    } else {
+      // Afficher popup classique si déconnexion inattendue
+      if (reason === 'io server disconnect' || reason === 'transport close') {
+        this.showReconnectionPopup();
+      }
     }
+  }
+
+  showMobileDisconnectionAlert(reason) {
+    const isCritical = reason === 'io server disconnect' || reason === 'transport close';
+
+    if (isCritical) {
+      this.showReconnectionPopup(false, true);
+    } else {
+      // Notification légère pour les déconnexions temporaires
+      this.showToastNotification('📱 Connexion perdue', 'Tentative de reconnexion...', 'warning');
+    }
+  }
+
+  showMobileReconnectedNotification() {
+    this.showToastNotification('✅ Reconnecté', 'Vous êtes de nouveau en ligne', 'success');
+  }
+
+  showToastNotification(title, message, type = 'info') {
+    // Supprimer les anciennes notifications
+    const oldToasts = document.querySelectorAll('.connection-toast');
+    oldToasts.forEach(toast => toast.remove());
+
+    const colors = {
+      success: '#4CAF50',
+      warning: '#FF9800',
+      error: '#F44336',
+      info: '#2196F3'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = 'connection-toast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: ${colors[type]};
+      color: white;
+      padding: 16px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 10001;
+      font-size: 14px;
+      font-weight: 500;
+      animation: toastSlideIn 0.3s ease-out;
+      max-width: 90%;
+      text-align: center;
+    `;
+
+    toast.innerHTML = `
+      <div style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">${title}</div>
+      <div style="font-size: 13px; opacity: 0.95;">${message}</div>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Auto-hide après 3 secondes
+    setTimeout(() => {
+      toast.style.animation = 'toastSlideOut 0.3s ease-in';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
   }
 
   handleConnectionError(error) {
@@ -174,12 +256,22 @@ class ConnectionManager {
     latencyDisplay.textContent = `${this.latency}ms`;
   }
 
-  showReconnectionPopup(isFailed = false) {
+  showReconnectionPopup(isFailed = false, isMobilePopup = false) {
     // Supprimer popup existante
     this.hideReconnectionPopup();
-    
+
     const popup = document.createElement('div');
     popup.id = 'reconnection-popup';
+
+    // Style adapté pour mobile
+    const mobileStyle = isMobilePopup ? `
+      width: 90%;
+      max-width: 400px;
+      padding: 20px 24px;
+    ` : `
+      padding: 24px 32px;
+    `;
+
     popup.style.cssText = `
       position: fixed;
       top: 50%;
@@ -187,7 +279,7 @@ class ConnectionManager {
       transform: translate(-50%, -50%);
       background: rgba(0, 0, 0, 0.95);
       color: white;
-      padding: 24px 32px;
+      ${mobileStyle}
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
       z-index: 10000;
@@ -196,17 +288,24 @@ class ConnectionManager {
       backdrop-filter: blur(10px);
       animation: popupAppear 0.3s ease-out;
     `;
-    
+
+    const mobileText = isMobilePopup ? `
+      <p style="margin: 0 0 16px 0; font-size: 13px; color: #FFC107;">
+        📱 Vérifiez votre connexion internet
+      </p>
+    ` : '';
+
     popup.innerHTML = `
-      <div style="font-size: 48px; margin-bottom: 16px;">
+      <div style="font-size: ${isMobilePopup ? '40px' : '48px'}; margin-bottom: 16px;">
         ${isFailed ? '⚠️' : '🔌'}
       </div>
-      <h2 style="margin: 0 0 12px 0; font-size: 20px;">
+      <h2 style="margin: 0 0 12px 0; font-size: ${isMobilePopup ? '18px' : '20px'};">
         ${isFailed ? 'Connexion perdue' : 'Reconnexion en cours...'}
       </h2>
+      ${mobileText}
       <p style="margin: 0 0 20px 0; font-size: 14px; color: #ccc;">
-        ${isFailed 
-          ? 'Impossible de se reconnecter au serveur.' 
+        ${isFailed
+          ? 'Impossible de se reconnecter au serveur.'
           : 'Tentative de reconnexion automatique...'}
       </p>
       ${isFailed ? `
@@ -219,6 +318,7 @@ class ConnectionManager {
           font-size: 16px;
           cursor: pointer;
           transition: all 0.2s;
+          width: ${isMobilePopup ? '100%' : 'auto'};
         ">
           Actualiser la page
         </button>
@@ -241,20 +341,23 @@ class ConnectionManager {
         </p>
       ` : ''}
     `;
-    
+
     document.body.appendChild(popup);
-    
+
     if (isFailed) {
       const reloadBtn = document.getElementById('reload-btn');
       reloadBtn.addEventListener('click', () => window.location.reload());
-      reloadBtn.addEventListener('mouseenter', function() {
-        this.style.background = '#8575ff';
-        this.style.transform = 'scale(1.05)';
-      });
-      reloadBtn.addEventListener('mouseleave', function() {
-        this.style.background = '#6b5bff';
-        this.style.transform = 'scale(1)';
-      });
+
+      if (!isMobilePopup) {
+        reloadBtn.addEventListener('mouseenter', function() {
+          this.style.background = '#8575ff';
+          this.style.transform = 'scale(1.05)';
+        });
+        reloadBtn.addEventListener('mouseleave', function() {
+          this.style.background = '#6b5bff';
+          this.style.transform = 'scale(1)';
+        });
+      }
     }
   }
 
@@ -280,12 +383,12 @@ connectionStyles.textContent = `
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
   }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  
+
   @keyframes popupAppear {
     0% {
       opacity: 0;
@@ -296,7 +399,7 @@ connectionStyles.textContent = `
       transform: translate(-50%, -50%) scale(1);
     }
   }
-  
+
   @keyframes popupDisappear {
     0% {
       opacity: 1;
@@ -306,6 +409,33 @@ connectionStyles.textContent = `
       opacity: 0;
       transform: translate(-50%, -50%) scale(0.8);
     }
+  }
+
+  @keyframes toastSlideIn {
+    0% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @keyframes toastSlideOut {
+    0% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-20px);
+    }
+  }
+
+  .connection-toast {
+    pointer-events: auto;
+    touch-action: none;
   }
 `;
 document.head.appendChild(connectionStyles);
