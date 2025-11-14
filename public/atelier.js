@@ -73,11 +73,11 @@ function getScenePos(pointer) {
 }
 
 const emitDrawingThrottled = throttle((data) => {
-  socket.emit('drawing', data);
+  connectionManager.emit('drawing', data);
 }, 50);
 
 const emitTextureThrottled = throttle((data) => {
-  socket.emit('texture', data);
+  connectionManager.emit('texture', data);
 }, 150);
 
 // Effet texture simplifié
@@ -452,8 +452,8 @@ stage.on('mouseup touchend pointerup', () => {
     shapePreview.opacity(1);
     const shapeId = generateId();
     shapePreview.id(shapeId);
-    
-    socket.emit('shapeCreate', {
+
+    connectionManager.emit('shapeCreate', {
       id: shapeId,
       type: currentTool,
       config: shapePreview.getAttrs()
@@ -475,7 +475,7 @@ stage.on('mouseup touchend pointerup', () => {
 
   // Événement final pour le dessin normal
   if (lastLine) {
-    socket.emit('draw', {
+    connectionManager.emit('draw', {
       id: currentId,
       points: lastLine.points(),
       stroke: lastLine.stroke(),
