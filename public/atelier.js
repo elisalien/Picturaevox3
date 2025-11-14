@@ -1,5 +1,13 @@
 // public/atelier.js - Version simplifiée avec BrushManager externe
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 5,
+  timeout: 10000,
+  transports: ['websocket', 'polling']
+});
+
 const stage = new Konva.Stage({
   container: 'canvas-container',
   width: window.innerWidth,
@@ -11,7 +19,8 @@ stage.add(layer);
 // Rendre stage disponible globalement
 window.stage = stage;
 
-// Initialiser le BrushManager unifié
+// Initialiser ConnectionManager et BrushManager
+const connectionManager = new ConnectionManager(socket);
 const brushManager = new BrushManager(layer, socket);
 
 let currentTool = 'brush';
