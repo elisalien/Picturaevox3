@@ -84,12 +84,22 @@ function validateDrawData(data) {
   if (!data.id || typeof data.id !== 'string') return { valid: false, error: 'Invalid ID' };
   if (data.id.length > 100) return { valid: false, error: 'ID too long' };
 
+  // Valider "stroke" (utilisé par les clients) ou "color" (rétrocompatibilité)
+  if (data.stroke && !isValidHexColor(data.stroke)) {
+    return { valid: false, error: 'Invalid stroke color format' };
+  }
+
   if (data.color && !isValidHexColor(data.color)) {
     return { valid: false, error: 'Invalid color format' };
   }
 
   if (data.points && !isValidPoints(data.points)) {
     return { valid: false, error: 'Invalid points array' };
+  }
+
+  // Valider "strokeWidth" (utilisé par les clients) ou "width"/"size" (rétrocompatibilité)
+  if (data.strokeWidth && !isValidSize(data.strokeWidth)) {
+    return { valid: false, error: 'Invalid strokeWidth' };
   }
 
   if (data.width && !isValidSize(data.width)) {
