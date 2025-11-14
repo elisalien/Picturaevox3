@@ -9,6 +9,18 @@
 <body>
   <div id="canvas-container"></div>
 
+  <!-- 📊 STATUS BAR CONNEXION -->
+  <div class="status-bar">
+    <div id="connection-indicator" class="status-indicator">
+      <span style="font-size: 14px;">●</span>
+      <span>Connexion...</span>
+    </div>
+    <div class="status-indicator">
+      <span style="font-size: 12px;">📡</span>
+      <span id="latency-display">--ms</span>
+    </div>
+  </div>
+
   <!-- Toolbar verticale artiste -->
   <div class="artist-toolbar">
     <!-- Outils de dessin -->
@@ -86,6 +98,7 @@
   <!-- SCRIPTS AVEC BRUSHMANAGER -->
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="connectionManager.js"></script>
   <script src="brushManager.js"></script>
   <script src="atelier.js"></script>
 </body>
