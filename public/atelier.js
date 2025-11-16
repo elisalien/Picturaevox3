@@ -685,4 +685,41 @@ notificationStyle.textContent = `
 `;
 document.head.appendChild(notificationStyle);
 
+// === TOGGLE UI (Touche H) ===
+let uiVisible = true;
+
+function toggleUI() {
+  uiVisible = !uiVisible;
+  const elements = document.querySelectorAll('.atelier-toolbar, .status-bar, .page-badge, #zoom-indicator');
+  elements.forEach(el => {
+    if (uiVisible) {
+      el.classList.remove('ui-hidden');
+    } else {
+      el.classList.add('ui-hidden');
+    }
+  });
+
+  // Update toggle button
+  const toggleBtn = document.getElementById('toggle-ui');
+  if (toggleBtn) {
+    toggleBtn.textContent = uiVisible ? '👁️' : '👁️‍🗨️';
+  }
+}
+
+// Toggle UI button
+const toggleUIBtn = document.getElementById('toggle-ui');
+if (toggleUIBtn) {
+  toggleUIBtn.addEventListener('click', toggleUI);
+}
+
+// Keyboard shortcut: H key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'h' || e.key === 'H') {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      toggleUI();
+    }
+  }
+});
+
 console.log('✅ Simplified Atelier.js loaded with unified BrushManager');

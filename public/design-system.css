@@ -1,0 +1,410 @@
+/*
+  🎨 DESIGN SYSTEM PICTURAEVOX3
+  Inspiré de /chantilly - Épuré, Minimaliste, Discret
+*/
+
+/* === VARIABLES === */
+:root {
+  --bg-dark: #0a0a0a;
+  --bg-panel: rgba(0, 20, 25, 0.85);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-medium: rgba(255, 255, 255, 0.1);
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #888888;
+  --accent-primary: #6b5bff;
+  --accent-hover: #8575ff;
+  --accent-glow: rgba(107, 91, 255, 0.3);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --blur-amount: 10px;
+}
+
+/* === RESET === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--bg-dark);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  touch-action: none;
+}
+
+/* === CANVAS === */
+#canvas-container {
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1 !important;
+  cursor: crosshair;
+}
+
+#canvas-container.grabbing {
+  cursor: grabbing;
+}
+
+/* === BADGE DISCRET (coin haut gauche) === */
+.page-badge {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: var(--bg-panel);
+  color: var(--accent-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 150;
+  backdrop-filter: blur(var(--blur-amount));
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-sm);
+  letter-spacing: 0.5px;
+  transition: opacity 0.3s ease;
+}
+
+/* === STATUS BAR (coin haut droit) === */
+.status-bar {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 150;
+  transition: opacity 0.3s ease;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg-panel);
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  backdrop-filter: blur(var(--blur-amount));
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+#connection-indicator {
+  transition: all 0.3s;
+}
+
+#latency-display {
+  font-weight: 600;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* === TOOLBAR HORIZONTALE (bas, centrée) === */
+.minimal-toolbar {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  border-radius: 10px;
+  z-index: 150;
+  backdrop-filter: blur(15px);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-md);
+  max-width: 90vw;
+  transition: opacity 0.3s ease;
+}
+
+/* === BOUTONS === */
+.tool-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.tool-btn:hover {
+  background: rgba(107, 91, 255, 0.15);
+  border-color: var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+.tool-btn.active {
+  background: var(--accent-primary);
+  color: #000;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.tool-btn:active {
+  transform: scale(0.95);
+}
+
+/* === SÉPARATEURS === */
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-medium);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* === TOGGLE UI BUTTON === */
+#toggle-ui {
+  position: fixed;
+  top: 50px;
+  left: 10px;
+  z-index: 200;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-size: 20px;
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(var(--blur-amount));
+}
+
+#toggle-ui:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px var(--accent-glow);
+  background: rgba(107, 91, 255, 0.15);
+}
+
+#toggle-ui:active {
+  transform: scale(0.95);
+}
+
+/* === CLASSE CACHÉE === */
+.ui-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* === CONTRÔLES COMPACTS === */
+.compact-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--bg-hover);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.compact-control label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 30px;
+}
+
+/* Slider */
+input[type="range"] {
+  height: 6px;
+  background: linear-gradient(to right,
+    rgba(107, 91, 255, 0.3) 0%,
+    rgba(107, 91, 255, 0.8) 100%
+  );
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  min-width: 80px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.1s;
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Color picker */
+input[type="color"] {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 6px;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: 2px solid var(--border-medium);
+  border-radius: 6px;
+}
+
+/* === NOTIFICATIONS === */
+.notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--accent-primary);
+  color: #000;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 300;
+  box-shadow: 0 4px 20px var(--accent-glow);
+  animation: notifAnim 2s ease-out;
+  pointer-events: none;
+}
+
+@keyframes notifAnim {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .minimal-toolbar {
+    bottom: 8px;
+    padding: 5px 8px;
+    gap: 3px;
+    max-width: calc(100% - 16px);
+  }
+
+  .tool-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .divider {
+    height: 20px;
+  }
+
+  #toggle-ui {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .page-badge {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+
+  .compact-control {
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .compact-control label {
+    font-size: 10px;
+    min-width: 25px;
+  }
+
+  input[type="range"] {
+    min-width: 60px;
+  }
+}
+
+@media (max-width: 480px) {
+  .minimal-toolbar {
+    gap: 2px;
+    padding: 4px 6px;
+  }
+
+  .tool-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .minimal-toolbar {
+    padding: 4px 6px;
+    gap: 2px;
+  }
+
+  .tool-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+
+  .compact-control {
+    padding: 2px 6px;
+  }
+}
+
+/* === ANIMATIONS === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}

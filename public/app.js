@@ -21,12 +21,20 @@ const brushManager = new BrushManager(layer, socket);
 
 let currentTool = 'brush';
 let currentColor = '#FFFFFF';
-let currentSize = parseInt(document.getElementById('size-slider-v3').value, 10);
+let currentSize = 4; // Default size
 let currentZoom = 1;
 let isDrawing = false;
 let lastLine;
 let currentId;
 let lastPanPos = null;
+
+// Initialize size after DOM loaded
+window.addEventListener('DOMContentLoaded', () => {
+  const slider = document.getElementById('size-slider');
+  if (slider) {
+    currentSize = parseInt(slider.value, 10);
+  }
+});
 
 // === UTILITAIRES ===
 function throttle(func, wait) {
@@ -74,15 +82,15 @@ const emitTextureThrottled = throttle((data) => {
 
 // === INTERFACE UTILISATEUR ===
 
-// ✅ FIX: Sélection des outils (toolbar-v3 uniquement)
-document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(btn => {
+// Sélection des outils
+document.querySelectorAll('.minimal-toolbar .tool-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.id === 'undo') {
       handleUndo();
       return;
     }
-    
-    document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(b => b.classList.remove('active'));
+
+    document.querySelectorAll('.minimal-toolbar .tool-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentTool = btn.id;
     updateCursor();
@@ -90,7 +98,7 @@ document.querySelectorAll('.toolbar-v3 .tool-btn').forEach(btn => {
 });
 
 // Slider d'épaisseur
-const sizeSlider = document.getElementById('size-slider-v3');
+const sizeSlider = document.getElementById('size-slider');
 const sizeValue = document.getElementById('size-value');
 
 sizeSlider.addEventListener('input', e => {
@@ -136,9 +144,15 @@ function setZoom(newZoom) {
   
   currentZoom = newZoom;
   
-  zoomResetBtn.textContent = Math.round(newZoom * 100) + '%';
-  zoomResetBtn.style.fontSize = '10px';
-  zoomResetBtn.style.fontWeight = '600';
+  // Update reset button to show zoom level
+  if (Math.round(newZoom * 100) !== 100) {
+    zoomResetBtn.textContent = Math.round(newZoom * 100) + '%';
+    zoomResetBtn.style.fontSize = '10px';
+    zoomResetBtn.style.fontWeight = '600';
+  } else {
+    zoomResetBtn.textContent = '⚫';
+    zoomResetBtn.style.fontSize = '16px';
+  }
 }
 
 zoomInBtn.addEventListener('click', () => {
@@ -600,5 +614,42 @@ socket.on('adminResetBrushEffects', () => {
 });
 
 updateCursor();
+
+// === TOGGLE UI (Touche H) ===
+let uiVisible = true;
+
+function toggleUI() {
+  uiVisible = !uiVisible;
+  const elements = document.querySelectorAll('.minimal-toolbar, .status-bar, .page-badge');
+  elements.forEach(el => {
+    if (uiVisible) {
+      el.classList.remove('ui-hidden');
+    } else {
+      el.classList.add('ui-hidden');
+    }
+  });
+
+  // Update toggle button
+  const toggleBtn = document.getElementById('toggle-ui');
+  if (toggleBtn) {
+    toggleBtn.textContent = uiVisible ? '👁️' : '👁️‍🗨️';
+  }
+}
+
+// Toggle UI button
+const toggleUIBtn = document.getElementById('toggle-ui');
+if (toggleUIBtn) {
+  toggleUIBtn.addEventListener('click', toggleUI);
+}
+
+// Keyboard shortcut: H key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'h' || e.key === 'H') {
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      toggleUI();
+    }
+  }
+});
 
 console.log('✅ App.js V3.1 loaded and working');
