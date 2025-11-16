@@ -8,19 +8,43 @@ const http = require('http').Server(app);
 const Redis = require('ioredis');
 
 // Configuration CORS sécurisée
-const allowedOrigins = process.env.ALLOWED_ORIGINS ?
-  process.env.ALLOWED_ORIGINS.split(',') :
+let allowedOrigins = process.env.ALLOWED_ORIGINS ?
+  process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) :
   ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
+// ✅ FIX: Auto-détecter et autoriser le domaine Railway/Render
+if (process.env.RAILWAY_STATIC_URL) {
+  allowedOrigins.push(`https://${process.env.RAILWAY_STATIC_URL}`);
+}
+if (process.env.RENDER_EXTERNAL_URL) {
+  allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
+}
+
+// ✅ FIX: Autoriser le domaine actuel en production
+const currentDomain = process.env.PUBLIC_URL || process.env.DOMAIN;
+if (currentDomain && !allowedOrigins.includes(currentDomain)) {
+  allowedOrigins.push(currentDomain);
+}
+
+console.log('🔒 CORS allowed origins:', allowedOrigins);
 
 const io = require('socket.io')(http, {
   cors: {
     origin: (origin, callback) => {
-      // Autoriser les requêtes sans origin (comme les apps mobiles)
+      // Autoriser les requêtes sans origin (comme les apps mobiles, Postman, etc.)
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      // ✅ FIX: En développement, autoriser toutes les origines
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+
+      // Vérifier si l'origine est autorisée
+      if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn(`⚠️ CORS blocked origin: ${origin}`);
+        console.warn(`   Allowed origins:`, allowedOrigins);
         callback(new Error('Not allowed by CORS'));
       }
     },
