@@ -502,16 +502,21 @@ document.getElementById('back-home')?.addEventListener('click', () => {
 
 socket.on('initShapes', shapes => {
   shapes.forEach(data => {
-    const line = new Konva.Line({
-      id: data.id,
-      points: data.points,
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      globalCompositeOperation: data.globalCompositeOperation,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-    layer.add(line);
+    // ✅ FIX: Gérer les tracés permanents en plus des lignes normales
+    if (data.type === 'permanentTrace') {
+      brushManager.renderPermanentTraces([data]);
+    } else {
+      const line = new Konva.Line({
+        id: data.id,
+        points: data.points,
+        stroke: data.stroke,
+        strokeWidth: data.strokeWidth,
+        globalCompositeOperation: data.globalCompositeOperation,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+      layer.add(line);
+    }
   });
   layer.draw();
 });
@@ -582,24 +587,29 @@ socket.on('deleteShape', ({ id }) => {
 
 socket.on('clearCanvas', () => {
   layer.destroyChildren();
-  brushManager.clearAllEffects();
+  brushManager.clearEverything(); // ✅ FIX: Supprimer aussi les tracés permanents
   layer.draw();
 });
 
 socket.on('restoreShapes', (shapes) => {
   layer.destroyChildren();
-  brushManager.clearAllEffects();
+  brushManager.clearEverything(); // ✅ FIX: Utiliser clearEverything au lieu de clearAllEffects
   shapes.forEach(data => {
-    const line = new Konva.Line({
-      id: data.id,
-      points: data.points,
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      globalCompositeOperation: data.globalCompositeOperation,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-    layer.add(line);
+    // ✅ FIX: Gérer les tracés permanents en plus des lignes normales
+    if (data.type === 'permanentTrace') {
+      brushManager.renderPermanentTraces([data]);
+    } else {
+      const line = new Konva.Line({
+        id: data.id,
+        points: data.points,
+        stroke: data.stroke,
+        strokeWidth: data.strokeWidth,
+        globalCompositeOperation: data.globalCompositeOperation,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
+      layer.add(line);
+    }
   });
   layer.draw();
 });
