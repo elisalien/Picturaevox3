@@ -334,6 +334,20 @@ class ConnectionManager {
             animation: spin 1s linear infinite;
           "></div>
         </div>
+        <button id="reload-btn" style="
+          margin-top: 20px;
+          padding: 12px 24px;
+          background: #6b5bff;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.2s;
+          width: ${isMobilePopup ? '100%' : 'auto'};
+        ">
+          Actualiser la page
+        </button>
       `}
       ${this.actionQueue.length > 0 ? `
         <p style="margin: 16px 0 0 0; font-size: 12px; color: #FFC107;">
@@ -344,8 +358,9 @@ class ConnectionManager {
 
     document.body.appendChild(popup);
 
-    if (isFailed) {
-      const reloadBtn = document.getElementById('reload-btn');
+    // Attacher l'événement au bouton de rafraîchissement (présent dans les deux cas maintenant)
+    const reloadBtn = document.getElementById('reload-btn');
+    if (reloadBtn) {
       reloadBtn.addEventListener('click', () => window.location.reload());
 
       if (!isMobilePopup) {
