@@ -468,8 +468,14 @@ stage.on('mouseup touchend pointerup', () => {
   if (!isDrawing) return;
   isDrawing = false;
 
-  // Les brush animés et texture n'ont pas besoin d'événement final
-  if (currentTool === 'texture' || ['sparkles', 'watercolor', 'electric', 'petals', 'neon', 'fire'].includes(currentTool)) {
+  // Déclencher le fade-out pour les brushs animés
+  if (['sparkles', 'watercolor', 'electric', 'petals', 'neon', 'fire'].includes(currentTool)) {
+    brushManager.endStroke();
+    return;
+  }
+
+  // Le brush texture n'a pas besoin d'événement final
+  if (currentTool === 'texture') {
     return;
   }
 
