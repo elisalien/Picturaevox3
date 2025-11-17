@@ -343,8 +343,14 @@ stage.on('mouseup touchend pointerup', () => {
 
   if (!isDrawing) return;
   isDrawing = false;
-  
-  if (currentTool === 'texture' || ['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
+
+  // Déclencher le fade-out pour les brushs animés
+  if (['neon', 'fire', 'sparkles', 'watercolor', 'electric', 'petals'].includes(currentTool)) {
+    brushManager.endStroke();
+    return;
+  }
+
+  if (currentTool === 'texture') {
     return;
   }
   
