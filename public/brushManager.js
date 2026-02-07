@@ -1132,9 +1132,7 @@ class BrushManager {
     if (effect) {
       effect.elements.forEach(el => { 
         // ✅ CORRECTION : Konva utilise isDestroyed comme propriété, pas méthode
-        if (el && !el.isDestroyed) {
-          el.destroy();
-        }
+        try { if (el) el.destroy(); } catch(e) {}
       });
       this.activeEffects.delete(effectId);
     }
@@ -1180,9 +1178,7 @@ class BrushManager {
     
     // Supprimer les enfants collectés
     childrenToRemove.forEach(child => {
-      if (child && !child.isDestroyed) {
-        child.destroy();
-      }
+      try { if (child) child.destroy(); } catch(e) {}
     });
     
     this.layer.batchDraw();
@@ -1215,9 +1211,7 @@ class BrushManager {
     
     // Supprimer tous les éléments collectés
     [...permanentTraces, ...temporaryEffects].forEach(child => {
-      if (child && !child.isDestroyed) {
-        child.destroy();
-      }
+      try { if (child) child.destroy(); } catch(e) {}
     });
     
     this.layer.batchDraw();

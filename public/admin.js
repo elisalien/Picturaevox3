@@ -21,7 +21,15 @@ stage.add(layer);
 
 window.stage = stage;
 
-// 🌐 Initialiser ConnectionManager
+// === RESIZE ===
+window.addEventListener('resize', () => {
+  stage.width(window.innerWidth);
+  stage.height(window.innerHeight);
+  stage.batchDraw();
+  updateMinimap();
+});
+
+// Initialiser ConnectionManager
 const connectionManager = new ConnectionManager(socket);
 
 // ✅ Initialiser le BrushManager
@@ -33,24 +41,16 @@ let currentTool = 'view';
 // === 🗺️ MINIMAP ===
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
-const minimapContainer = document.getElementById('minimap-container');
 
-const CANVAS_VIRTUAL_SIZE = 8000; // Taille virtuelle du canvas
+const CANVAS_VIRTUAL_SIZE = 8000;
 
 function updateMinimap() {
-  if (!minimapCanvas || !minimapCtx || !minimapContainer) {
-    console.warn('⚠️ Minimap elements not found');
-    return;
-  }
-  
-  // Forcer les dimensions du canvas
-  const w = minimapContainer.clientWidth;
-  const h = minimapContainer.clientHeight;
-  
+  if (!minimapCanvas || !minimapCtx) return;
+
+  const w = minimapCanvas.width;
+  const h = minimapCanvas.height;
+
   if (w <= 0 || h <= 0) return;
-  
-  minimapCanvas.width = w;
-  minimapCanvas.height = h;
   
   const scaleX = w / CANVAS_VIRTUAL_SIZE;
   const scaleY = h / CANVAS_VIRTUAL_SIZE;
@@ -338,25 +338,24 @@ function showAdminNotification(message) {
 
 // === 🎛️ INTERFACE ADMIN ===
 
-const centerOriginBtn = document.getElementById('center-origin');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const resetZoomBtn = document.getElementById('reset-zoom');
-const eraserBtn = document.getElementById('eraser');
+const deleteModeBtn = document.getElementById('delete-mode');
 const resetEffectsBtn = document.getElementById('reset-effects');
 const clearBtn = document.getElementById('clear-canvas');
 const undoBtn = document.getElementById('undo');
 const exportBtn = document.getElementById('export');
-const backHomeBtn = document.getElementById('back-home');
+const panBtn = document.getElementById('pan');
+const hideUiBtn = document.getElementById('hide-ui');
 
-// === 🎯 CENTRER SUR ORIGINE ===
-centerOriginBtn?.addEventListener('click', () => {
-  stage.scale({ x: 1, y: 1 });
-  stage.position({ x: 0, y: 0 });
-  stage.batchDraw();
-  currentZoom = 1;
-  updateMinimap();
-  showAdminNotification('Centré sur origine (0,0)');
+// === 🎯 PAN MODE ===
+panBtn?.addEventListener('click', () => {
+  currentTool = 'view';
+  deleteModeBtn?.classList.remove('active');
+  panBtn?.classList.add('active');
+  stage.container().style.cursor = 'grab';
+  showAdminNotification('Mode navigation');
 });
 
 // === 🔍 ZOOM ===
@@ -405,10 +404,11 @@ resetZoomBtn?.addEventListener('click', () => {
   showAdminNotification('Zoom 100%');
 });
 
-// === 🧽 GOMME ===
-eraserBtn?.addEventListener('click', () => {
+// === 🗑️ DELETE MODE ===
+deleteModeBtn?.addEventListener('click', () => {
   currentTool = currentTool === 'eraser' ? 'view' : 'eraser';
-  eraserBtn.classList.toggle('active');
+  deleteModeBtn.classList.toggle('active');
+  panBtn?.classList.toggle('active');
   stage.container().style.cursor = currentTool === 'eraser' ? 'crosshair' : 'grab';
   showAdminNotification(currentTool === 'eraser' ? 'Mode suppression' : 'Mode navigation');
 });
@@ -474,11 +474,6 @@ exportBtn?.addEventListener('click', () => {
   showAdminNotification('Exporté 📷');
 });
 
-// === 🏠 RETOUR ===
-backHomeBtn?.addEventListener('click', () => {
-  window.location.href = '/';
-});
-
 // === 🖱️ ZOOM MOLETTE ===
 stage.on('wheel', (e) => {
   e.evt.preventDefault();
@@ -513,33 +508,28 @@ let isUIVisible = true;
 
 function toggleUI() {
   isUIVisible = !isUIVisible;
-  
+
   const elementsToToggle = [
     document.querySelector('.admin-toolbar'),
     document.querySelector('.admin-badge'),
     document.querySelector('.status-bar'),
-    document.getElementById('minimap-container')
+    document.getElementById('minimap')
   ];
-  
+
   elementsToToggle.forEach(el => {
     if (el) {
-      if (isUIVisible) {
-        el.classList.remove('ui-hidden');
-      } else {
-        el.classList.add('ui-hidden');
-      }
+      el.style.display = isUIVisible ? '' : 'none';
     }
   });
-  
-  const toggleBtn = document.getElementById('toggle-ui');
-  if (toggleBtn) {
-    toggleBtn.textContent = isUIVisible ? '👁️' : '👁️‍🗨️';
+
+  if (hideUiBtn) {
+    hideUiBtn.textContent = isUIVisible ? '👁' : '👁‍🗨';
   }
-  
+
   showAdminNotification(isUIVisible ? 'UI visible' : 'UI cachée');
 }
 
-document.getElementById('toggle-ui')?.addEventListener('click', toggleUI);
+hideUiBtn?.addEventListener('click', toggleUI);
 
 // === ⌨️ RACCOURCIS CLAVIER ===
 document.addEventListener('keydown', (e) => {
@@ -581,10 +571,11 @@ document.addEventListener('keydown', (e) => {
     }
   }
   
-  // Échap pour désactiver gomme
+  // Escape to disable delete mode
   if (e.key === 'Escape' && currentTool === 'eraser') {
     currentTool = 'view';
-    eraserBtn?.classList.remove('active');
+    deleteModeBtn?.classList.remove('active');
+    panBtn?.classList.add('active');
     stage.container().style.cursor = 'grab';
     showAdminNotification('Mode navigation');
   }

@@ -35,7 +35,7 @@ const io = require('socket.io')(http, {
       if (!origin) return callback(null, true);
 
       // ✅ FIX: En développement, autoriser toutes les origines
-      if (process.env.NODE_ENV === 'development') {
+      if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
         return callback(null, true);
       }
 
@@ -598,7 +598,8 @@ http.listen(PORT, '0.0.0.0', async () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`✅ Undo history: ${MAX_HISTORY} actions in memory, ${MAX_HISTORY_REDIS} in Redis`);
   console.log(`🏓 Ping/Pong monitoring enabled`);
-  console.log(`🔒 CORS security: ${process.env.NODE_ENV === 'development' ? 'Development mode' : 'Production mode'}`);
+  const effectiveEnv = process.env.NODE_ENV || 'development';
+  console.log(`🔒 CORS security: ${effectiveEnv === 'development' ? 'Development mode' : 'Production mode'}`);
   console.log(`📊 Max shapes: ${MAX_SHAPES}, TTL: ${SHAPE_TTL / 1000}s`);
 
   // Charger les shapes depuis Redis au démarrage
