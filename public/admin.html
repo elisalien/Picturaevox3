@@ -2,345 +2,197 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Admin — Picturævox</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* === RESET & BASE === */
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background-color: #0a0a0a;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    }
-
-    /* === CANVAS (toujours accessible) === */
-    #canvas-container {
-      width: 100vw !important;
-      height: 100vh !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      z-index: 1 !important;
-      cursor: grab;
-    }
-
-    #canvas-container.grabbing {
-      cursor: grabbing;
-    }
-
-    /* === COULEUR ADMIN TURQUOISE === */
-    :root {
-      --admin-color: #00d9ff;
-      --admin-color-dark: #00b8d4;
-      --admin-bg: rgba(0, 217, 255, 0.1);
-      --admin-border: rgba(0, 217, 255, 0.3);
-    }
-
-    /* === BADGE ADMIN (petit, discret) === */
-    .admin-badge {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 20, 25, 0.85);
-      color: var(--admin-color);
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      z-index: 150;
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--admin-border);
-      box-shadow: 0 2px 10px rgba(0, 217, 255, 0.2);
-      letter-spacing: 0.5px;
-      transition: opacity 0.3s ease;
-    }
-
-    /* === STATUS BAR (compact, coin) === */
-    .status-bar {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      display: flex;
-      gap: 4px;
-      z-index: 150;
-      transition: opacity 0.3s ease;
-    }
-
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      background: rgba(0, 20, 25, 0.85);
-      border-radius: 6px;
-      font-size: 10px;
-      color: #ccc;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-
-    #connection-indicator {
-      transition: all 0.3s;
-    }
-
-    #latency-display {
-      font-weight: 600;
-      font-family: monospace;
-      font-size: 11px;
-    }
-
-    /* === TOOLBAR ADMIN (bas de page, semi-transparent) === */
+    /* ADMIN TOOLBAR */
     .admin-toolbar {
       position: fixed;
-      bottom: 12px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 4px;
+      gap: 6px;
       align-items: center;
-      padding: 6px 10px;
-      background: rgba(0, 20, 25, 0.75);
-      border-radius: 10px;
-      z-index: 150;
-      backdrop-filter: blur(15px);
-      border: 1px solid var(--admin-border);
-      box-shadow: 0 4px 20px rgba(0, 217, 255, 0.15);
-      max-width: 90vw;
-      transition: opacity 0.3s ease;
+      padding: 10px 16px;
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      z-index: 1000;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 217, 255, 0.15);
+      transition: opacity 0.3s, transform 0.3s;
     }
-    
-    .admin-toolbar .tool-btn {
-      width: 36px;
-      height: 36px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
-      color: #fff;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      border: 1px solid transparent;
-    }
-    
-    .admin-toolbar .tool-btn:hover {
-      background: rgba(0, 217, 255, 0.15);
-      border-color: var(--admin-border);
-      transform: translateY(-2px);
-    }
-    
-    .admin-toolbar .tool-btn.active {
-      background: var(--admin-color);
-      color: #000;
-      box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
-    }
-    
-    .divider {
-      width: 1px;
-      height: 24px;
-      background: rgba(255, 255, 255, 0.1);
-      margin: 0 4px;
-      flex-shrink: 0;
-    }
-
-    /* === MINIMAP (petit, coin) === */
-    #minimap-container {
-      position: fixed;
-      bottom: 12px;
-      right: 12px;
-      width: 160px;
-      height: 120px;
-      background: rgba(0, 20, 25, 0.85);
-      border: 1px solid var(--admin-border);
-      border-radius: 8px;
-      z-index: 150;
-      overflow: hidden;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 4px 15px rgba(0, 217, 255, 0.15);
-      transition: opacity 0.3s ease;
-    }
-
-    #minimap {
-      width: 100%;
-      height: 100%;
-    }
-
-    /* === TOGGLE UI (toujours visible) === */
-    #toggle-ui {
-      position: fixed;
-      top: 50px;
-      left: 10px;
-      z-index: 200;
-      width: 40px;
-      height: 40px;
-      border: none;
-      border-radius: 8px;
-      background: rgba(0, 20, 25, 0.85);
-      color: var(--admin-color);
-      cursor: pointer;
-      font-size: 20px;
-      border: 1px solid var(--admin-border);
-      box-shadow: 0 2px 10px rgba(0, 217, 255, 0.2);
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(10px);
-    }
-
-    #toggle-ui:hover {
-      transform: scale(1.05);
-      box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
-      background: rgba(0, 217, 255, 0.15);
-    }
-
-    #toggle-ui:active {
-      transform: scale(0.95);
-    }
-
-    /* === CLASSE CACHÉE === */
-    .ui-hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
-    }
-
-    /* === NOTIFICATION === */
-    .admin-notification {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 217, 255, 0.95);
-      color: #000;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      z-index: 300;
-      box-shadow: 0 4px 20px rgba(0, 217, 255, 0.5);
-      animation: adminNotif 2s ease-out;
+    .admin-toolbar.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
       pointer-events: none;
     }
 
-    @keyframes adminNotif {
-      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-      15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-      85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    .admin-toolbar .tool-btn {
+      width: 40px;
+      height: 40px;
+      font-size: 17px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      color: #ccc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .admin-toolbar .tool-btn:hover {
+      background: rgba(0, 217, 255, 0.15);
+      color: #fff;
+    }
+    .admin-toolbar .tool-btn.active {
+      background: linear-gradient(135deg, #00b8d4, #00d9ff);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+    }
+    .admin-toolbar .tool-btn.danger:hover {
+      background: rgba(244, 67, 54, 0.2);
     }
 
-    /* === RESPONSIVE === */
+    .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background: rgba(255,255,255,0.1);
+      margin: 0 2px;
+      flex-shrink: 0;
+    }
+
+    /* ADMIN BADGE */
+    .admin-badge {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 2000;
+      padding: 6px 14px;
+      background: rgba(0, 217, 255, 0.12);
+      border: 1px solid rgba(0, 217, 255, 0.25);
+      border-radius: 20px;
+      color: #00d9ff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+    }
+
+    /* HIDE UI */
+    #hide-ui {
+      position: fixed;
+      top: 12px;
+      right: 60px;
+      z-index: 2000;
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 50%;
+      background: rgba(18, 18, 24, 0.85);
+      color: #bbb;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+    #hide-ui:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+    /* STATUS BAR */
+    .status-bar {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 6px;
+      z-index: 999;
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      background: rgba(18, 18, 24, 0.85);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #bbb;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    #latency-display { font-weight: 600; font-family: 'SF Mono', monospace; font-size: 11px; }
+
+    /* MINIMAP */
+    #minimap {
+      position: fixed;
+      bottom: 80px;
+      right: 12px;
+      border: 1px solid rgba(0, 217, 255, 0.25);
+      background: rgba(18, 18, 24, 0.85);
+      z-index: 1000;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    /* MOBILE */
     @media (max-width: 768px) {
-      .admin-toolbar {
-        bottom: 8px;
-        padding: 5px 8px;
-        gap: 3px;
-        max-width: calc(100% - 180px);
-      }
-      
-      .admin-toolbar .tool-btn {
-        width: 32px;
-        height: 32px;
-        font-size: 14px;
-      }
-      
-      .divider {
-        height: 20px;
-      }
-
-      #minimap-container {
-        width: 140px;
-        height: 100px;
-        bottom: 8px;
-        right: 8px;
-      }
-
-      #toggle-ui {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
-      }
-
-      .admin-badge {
-        font-size: 10px;
-        padding: 5px 10px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .admin-toolbar {
-        gap: 2px;
-        padding: 4px 6px;
-      }
-      
-      .admin-toolbar .tool-btn {
-        width: 28px;
-        height: 28px;
-        font-size: 13px;
-      }
-
-      #minimap-container {
-        width: 120px;
-        height: 90px;
-      }
+      .admin-toolbar { padding: 8px 10px; gap: 4px; bottom: 10px; }
+      .admin-toolbar .tool-btn { width: 36px; height: 36px; font-size: 15px; }
+      #minimap { bottom: 70px; right: 6px; }
+      .admin-badge { top: 6px; left: 6px; font-size: 10px; padding: 5px 10px; }
+      #hide-ui { top: 6px; right: 50px; width: 32px; height: 32px; font-size: 12px; }
     }
   </style>
 </head>
 <body>
-  <!-- CANVAS (z-index: 1, toujours accessible) -->
   <div id="canvas-container"></div>
 
-  <!-- TOGGLE UI (z-index: 200, toujours visible) -->
-  <button id="toggle-ui" title="Masquer/Afficher UI (Touche H)">👁️</button>
+  <!-- ADMIN BADGE -->
+  <div class="admin-badge">ADMIN</div>
 
-  <!-- BADGE ADMIN (z-index: 150) -->
-  <div class="admin-badge">
-    👑 ADMIN
-  </div>
-
-  <!-- STATUS BAR (z-index: 150) -->
+  <!-- STATUS BAR -->
   <div class="status-bar">
     <div id="connection-indicator" class="status-indicator">
-      <span>●</span>
-      <span id="connection-text">...</span>
+      <span style="font-size: 14px;">●</span>
+      <span>Connexion...</span>
     </div>
     <div class="status-indicator">
-      <span>📡</span>
-      <span id="latency-display">--</span>
+      <span style="font-size: 12px;">📡</span>
+      <span id="latency-display">--ms</span>
     </div>
   </div>
 
-  <!-- TOOLBAR ADMIN (z-index: 150) -->
-  <div class="admin-toolbar">
-    <button id="center-origin" class="tool-btn" title="Centrer sur origine (0,0)">🎯</button>
+  <!-- HIDE UI BUTTON -->
+  <button id="hide-ui" title="Masquer/Afficher (H)">👁</button>
+
+  <!-- TOOLBAR ADMIN -->
+  <div class="admin-toolbar" id="admin-toolbar">
+    <button id="pan" class="tool-btn active" title="Déplacement">✋</button>
     <button id="zoom-in" class="tool-btn" title="Zoom +">🔍+</button>
     <button id="zoom-out" class="tool-btn" title="Zoom -">🔍-</button>
-    <button id="reset-zoom" class="tool-btn" title="Reset zoom">↺</button>
-
-    <div class="divider"></div>
-
-    <button id="eraser" class="tool-btn" title="Supprimer objet (Clic)">🧽</button>
-    <button id="reset-effects" class="tool-btn" title="Reset effets (Ctrl+Shift+E)">✨</button>
-    <button id="clear-canvas" class="tool-btn" title="Clear TOUT (Ctrl+Shift+R)">🧼</button>
-    
-    <div class="divider"></div>
-    
-    <button id="undo" class="tool-btn" title="Undo global (Ctrl+Z)">↶</button>
+    <button id="reset-zoom" class="tool-btn" title="Reset vue">🎯</button>
+    <div class="toolbar-divider"></div>
+    <button id="delete-mode" class="tool-btn" title="Supprimer un élément">🗑️</button>
+    <button id="undo" class="tool-btn" title="Annuler">↶</button>
+    <div class="toolbar-divider"></div>
+    <button id="reset-effects" class="tool-btn danger" title="Reset effets">💥</button>
+    <button id="clear-canvas" class="tool-btn danger" title="Effacer tout">🧹</button>
+    <div class="toolbar-divider"></div>
     <button id="export" class="tool-btn" title="Exporter PNG">📷</button>
-    <button id="back-home" class="tool-btn" title="Retour public">🏠</button>
   </div>
 
-  <!-- MINIMAP (z-index: 150) -->
-  <div id="minimap-container">
-    <canvas id="minimap"></canvas>
-  </div>
+  <!-- MINIMAP -->
+  <canvas id="minimap" width="160" height="120"></canvas>
 
-  <!-- SCRIPTS -->
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="connectionManager.js"></script>

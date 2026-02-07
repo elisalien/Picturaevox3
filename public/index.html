@@ -6,28 +6,29 @@
   <title>Picturævox — Dessin collaboratif</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* 🎯 TOOLBAR V3 OPTIMISÉE */
-    .toolbar-v3 {
+    /* TOOLBAR PRINCIPALE */
+    .toolbar-main {
       position: fixed;
-      bottom: 8px;
-      left: 8px;
-      right: 8px;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      background-color: rgba(20, 20, 20, 0.95);
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      gap: 6px;
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 16px;
+      padding: 10px 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
       z-index: 1000;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
     }
 
-    /* Ligne 1: Outils de dessin */
-    .toolbar-row-tools {
+    /* Ligne outils */
+    .toolbar-row {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       align-items: center;
       justify-content: center;
       flex-wrap: nowrap;
@@ -35,280 +36,243 @@
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
+    .toolbar-row::-webkit-scrollbar { display: none; }
 
-    .toolbar-row-tools::-webkit-scrollbar {
-      display: none;
+    .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background: rgba(255,255,255,0.1);
+      margin: 0 2px;
+      flex-shrink: 0;
     }
 
-    /* Ligne 2: Contrôles (slider + zoom) */
-    .toolbar-row-controls {
+    /* Ligne controles */
+    .toolbar-controls {
       display: flex;
       gap: 8px;
       align-items: center;
       justify-content: space-between;
     }
 
+    /* Palette couleurs */
+    .color-palette {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 1;
+    }
+    .color-palette::-webkit-scrollbar { display: none; }
+
+    .color-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .color-dot:hover { transform: scale(1.15); }
+    .color-dot.active {
+      border-color: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.4);
+      transform: scale(1.15);
+    }
+    .color-dot[data-color="#FFFFFF"] { border-color: rgba(255,255,255,0.3); }
+    .color-dot[data-color="#000000"] { border-color: rgba(255,255,255,0.2); }
+
+    /* Slider épaisseur */
     .size-control {
-      flex: 1;
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(255,255,255,0.05);
-      padding: 8px 12px;
-      border-radius: 8px;
+      padding: 4px 10px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      flex-shrink: 0;
     }
-
     .size-label {
-      color: #ccc;
-      font-size: 12px;
+      color: #999;
+      font-size: 11px;
       font-weight: 600;
       white-space: nowrap;
-      min-width: 35px;
+      min-width: 28px;
+      text-align: center;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
     }
-
-    #size-slider-v3 {
-      flex: 1;
-      height: 8px;
-      background: linear-gradient(to right, 
-        rgba(107, 91, 255, 0.3) 0%, 
-        rgba(107, 91, 255, 0.8) 100%
-      );
-      border-radius: 4px;
+    #size-slider {
+      width: 80px;
+      height: 6px;
+      background: linear-gradient(to right, rgba(107,91,255,0.3), rgba(107,91,255,0.8));
+      border-radius: 3px;
       outline: none;
       -webkit-appearance: none;
       appearance: none;
       cursor: pointer;
     }
-
-    #size-slider-v3::-webkit-slider-thumb {
+    #size-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
-      appearance: none;
-      width: 24px;
-      height: 24px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       background: #6b5bff;
       cursor: pointer;
-      border: 3px solid white;
+      border: 2px solid #fff;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       transition: transform 0.1s;
     }
-
-    #size-slider-v3::-webkit-slider-thumb:active {
-      transform: scale(1.2);
-    }
-
-    #size-slider-v3::-moz-range-thumb {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #6b5bff;
-      cursor: pointer;
-      border: 3px solid white;
+    #size-slider::-webkit-slider-thumb:active { transform: scale(1.2); }
+    #size-slider::-moz-range-thumb {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #6b5bff; cursor: pointer;
+      border: 2px solid #fff;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
 
+    /* Zoom */
     .zoom-controls {
       display: flex;
-      gap: 4px;
-      background: rgba(255,255,255,0.05);
-      padding: 4px;
-      border-radius: 8px;
+      gap: 3px;
+      background: rgba(255,255,255,0.04);
+      padding: 3px;
+      border-radius: 10px;
+      flex-shrink: 0;
     }
-
     .zoom-btn {
-      width: 40px;
-      height: 40px;
-      font-size: 18px;
+      width: 34px;
+      height: 34px;
+      font-size: 14px;
+      font-weight: 700;
       border: none;
-      border-radius: 6px;
-      background-color: #444;
-      color: white;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      color: #bbb;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
+    .zoom-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .zoom-btn:active { transform: scale(0.92); }
+    .zoom-text { font-size: 10px; font-weight: 600; font-family: 'SF Mono', monospace; }
 
-    .zoom-btn:active {
-      transform: scale(0.95);
-      background-color: #666;
-    }
-
-    /* 📊 INDICATEURS DE CONNEXION */
-    .status-bar {
+    /* NAV LINK */
+    .nav-link {
       position: fixed;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      top: 12px;
+      left: 12px;
       z-index: 999;
     }
-
-    .status-indicator {
+    .nav-link a {
       display: flex;
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      background: rgba(20, 20, 20, 0.9);
+      background: rgba(18, 18, 24, 0.85);
       border-radius: 20px;
-      font-size: 12px;
-      color: white;
+      font-size: 11px;
+      color: #bbb;
+      text-decoration: none;
       backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .nav-link a:hover {
+      background: rgba(107, 91, 255, 0.2);
+      border-color: rgba(107, 91, 255, 0.3);
+      color: #fff;
     }
 
-    #connection-indicator {
-      transition: all 0.3s;
-    }
-
-    #latency-display {
-      font-weight: 600;
-      font-family: monospace;
-    }
-
-    /* MOBILE OPTIMISATIONS */
+    /* MOBILE */
     @media (max-width: 768px) {
-      .toolbar-v3 {
-        bottom: 4px;
-        left: 4px;
-        right: 4px;
-        padding: 10px;
-        gap: 6px;
-      }
-
-      .toolbar-row-tools {
-        gap: 4px;
-      }
-
-      .tool-btn {
-        min-width: 38px;
-        width: 38px;
-        min-height: 38px;
-        height: 38px;
-        font-size: 16px;
-      }
-
-      .size-control {
-        padding: 6px 10px;
-      }
-
-      .size-label {
-        font-size: 11px;
-        min-width: 32px;
-      }
-
-      #size-slider-v3::-webkit-slider-thumb {
-        width: 28px;
-        height: 28px;
-      }
-
-      .zoom-btn {
-        width: 38px;
-        height: 38px;
-        font-size: 16px;
-      }
-
-      .status-bar {
-        top: 4px;
-        right: 4px;
-        gap: 4px;
-      }
-
-      .status-indicator {
-        padding: 4px 10px;
-        font-size: 11px;
-      }
+      .toolbar-main { bottom: 6px; left: 6px; right: 6px; padding: 8px 10px; gap: 5px; border-radius: 14px; }
+      .color-dot { width: 22px; height: 22px; }
+      #size-slider { width: 60px; }
+      .zoom-btn { width: 30px; height: 30px; font-size: 12px; }
     }
-
     @media (max-width: 480px) {
-      .tool-btn {
-        min-width: 34px;
-        width: 34px;
-        min-height: 34px;
-        height: 34px;
-        font-size: 14px;
-      }
-
-      .zoom-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 14px;
-      }
-
-      #size-slider-v3::-webkit-slider-thumb {
-        width: 26px;
-        height: 26px;
-      }
+      .toolbar-main { padding: 6px 8px; gap: 4px; }
+      .color-dot { width: 20px; height: 20px; }
+      #size-slider { width: 50px; }
+      .zoom-btn { width: 28px; height: 28px; }
+      .size-control { padding: 3px 6px; gap: 4px; }
     }
-
-    /* PAYSAGE MODE */
     @media (max-height: 500px) and (orientation: landscape) {
-      .toolbar-v3 {
-        padding: 6px;
-        gap: 4px;
-      }
-
-      .tool-btn, .zoom-btn {
-        width: 32px;
-        height: 32px;
-        font-size: 14px;
-      }
-
-      .size-control {
-        padding: 4px 8px;
-      }
+      .toolbar-main { padding: 4px 6px; gap: 3px; border-radius: 10px; }
+      .color-dot { width: 18px; height: 18px; }
     }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
 
-  <!-- 📊 BARRE D'ÉTAT CONNEXION -->
+  <!-- NAV -->
+  <div class="nav-link">
+    <a href="/atelier">Atelier</a>
+  </div>
+
+  <!-- STATUS BAR -->
   <div class="status-bar">
     <div id="connection-indicator" class="status-indicator">
-      <span style="font-size: 16px;">●</span>
+      <span style="font-size: 14px;">●</span>
       <span>Connexion...</span>
     </div>
     <div class="status-indicator">
-      <span style="font-size: 14px;">📡</span>
+      <span style="font-size: 12px;">📡</span>
       <span id="latency-display">--ms</span>
     </div>
   </div>
 
-  <!-- 🎨 TOOLBAR V3 OPTIMISÉE -->
-  <div class="toolbar-v3">
-    <!-- Ligne 1: Outils de dessin -->
-    <div class="toolbar-row-tools">
+  <!-- TOOLBAR -->
+  <div class="toolbar-main">
+    <div class="toolbar-row">
       <button id="brush" class="tool-btn active" title="Pinceau">🖋️</button>
       <button id="texture" class="tool-btn" title="Spray">🖌️</button>
+      <div class="toolbar-divider"></div>
       <button id="sparkles" class="tool-btn" title="Paillettes">✨</button>
       <button id="watercolor" class="tool-btn" title="Aquarelle">💧</button>
       <button id="neon" class="tool-btn" title="Néon">🌟</button>
       <button id="fire" class="tool-btn" title="Feu">🔥</button>
+      <div class="toolbar-divider"></div>
       <button id="eraser" class="tool-btn" title="Gomme">🧽</button>
       <button id="pan" class="tool-btn" title="Déplacement">✋</button>
-      <button id="undo" class="tool-btn" title="Annuler">↶</button>
+      <button id="undo" class="tool-btn" title="Annuler (Ctrl+Z)">↶</button>
     </div>
 
-    <!-- Ligne 2: Contrôles -->
-    <div class="toolbar-row-controls">
+    <div class="toolbar-controls">
+      <div class="color-palette">
+        <div class="color-dot active" data-color="#FFFFFF" style="background:#FFFFFF;"></div>
+        <div class="color-dot" data-color="#FF5252" style="background:#FF5252;"></div>
+        <div class="color-dot" data-color="#FFD740" style="background:#FFD740;"></div>
+        <div class="color-dot" data-color="#40C4FF" style="background:#40C4FF;"></div>
+        <div class="color-dot" data-color="#69F0AE" style="background:#69F0AE;"></div>
+        <div class="color-dot" data-color="#E040FB" style="background:#E040FB;"></div>
+        <div class="color-dot" data-color="#FF9800" style="background:#FF9800;"></div>
+        <div class="color-dot" data-color="#000000" style="background:#000000;"></div>
+      </div>
+
       <div class="size-control">
         <span class="size-label" id="size-value">4px</span>
-        <input type="range" id="size-slider-v3" min="1" max="20" value="4" />
+        <input type="range" id="size-slider" min="1" max="20" value="4" />
       </div>
 
       <div class="zoom-controls">
-        <button id="zoom-out" class="zoom-btn" title="Zoom -">🔍-</button>
-        <button id="zoom-reset" class="zoom-btn" title="Reset">⚫</button>
-        <button id="zoom-in" class="zoom-btn" title="Zoom +">🔍+</button>
+        <button id="zoom-out" class="zoom-btn" title="Zoom -">−</button>
+        <button id="zoom-reset" class="zoom-btn" title="Reset"><span class="zoom-text">100%</span></button>
+        <button id="zoom-in" class="zoom-btn" title="Zoom +">+</button>
       </div>
     </div>
   </div>
 
-  <!-- SCRIPTS -->
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="connectionManager.js"></script>

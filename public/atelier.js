@@ -1,4 +1,4 @@
-// public/atelier.js - Version simplifiée avec BrushManager externe
+// public/atelier.js V4 - Avec undo, resize, design amélioré
 const socket = io({
   reconnection: true,
   reconnectionDelay: 1000,
@@ -15,11 +15,8 @@ const stage = new Konva.Stage({
 });
 const layer = new Konva.Layer();
 stage.add(layer);
-
-// Rendre stage disponible globalement
 window.stage = stage;
 
-// Initialiser ConnectionManager et BrushManager
 const connectionManager = new ConnectionManager(socket);
 const brushManager = new BrushManager(layer, socket);
 
@@ -34,6 +31,13 @@ let currentZoom = 1;
 let isCreatingShape = false;
 let shapePreview = null;
 let shapeStartPos = null;
+
+// === RESIZE ===
+window.addEventListener('resize', () => {
+  stage.width(window.innerWidth);
+  stage.height(window.innerHeight);
+  stage.batchDraw();
+});
 
 // === UTILITAIRES ===
 function throttle(func, wait) {
@@ -64,7 +68,6 @@ function getPressureSize(pressure) {
   return minSize + (maxSize - minSize) * pressure;
 }
 
-// Coordonnées pour tous les cas (simplifiées)
 function getScenePos(pointer) {
   return {
     x: (pointer.x - stage.x()) / stage.scaleX(),
@@ -80,7 +83,6 @@ const emitTextureThrottled = throttle((data) => {
   connectionManager.emit('texture', data);
 }, 150);
 
-// Effet texture simplifié
 function createTextureEffect(x, y, color, size) {
   for (let i = 0; i < 7; i++) {
     const offsetX = (Math.random() - 0.5) * 12;
@@ -101,10 +103,19 @@ function createTextureEffect(x, y, color, size) {
 
 // === INTERFACE UTILISATEUR ===
 
-// Gestion des outils
-document.querySelectorAll('.tool-btn, .shape-btn').forEach(btn => {
+// Gestion des outils (sidebar)
+document.querySelectorAll('.artist-sidebar .tool-btn, .artist-sidebar .shape-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tool-btn, .shape-btn').forEach(b => b.classList.remove('active'));
+    if (btn.id === 'undo-btn') {
+      handleUndo();
+      return;
+    }
+    if (['zoom-in', 'zoom-out', 'reset-zoom', 'export', 'back-home'].includes(btn.id)) return;
+    document.querySelectorAll('.artist-sidebar .tool-btn, .artist-sidebar .shape-btn').forEach(b => {
+      if (!['zoom-in', 'zoom-out', 'reset-zoom', 'undo-btn', 'export', 'back-home'].includes(b.id)) {
+        b.classList.remove('active');
+      }
+    });
     btn.classList.add('active');
     currentTool = btn.id;
     updateCursor();
@@ -113,19 +124,25 @@ document.querySelectorAll('.tool-btn, .shape-btn').forEach(btn => {
 
 function updateCursor() {
   const container = stage.container();
-  switch(currentTool) {
-    case 'pan':
-      container.style.cursor = 'grab';
-      break;
-    case 'eyedropper':
-      container.style.cursor = 'crosshair';
-      break;
-    default:
-      container.style.cursor = 'crosshair';
-  }
+  container.style.cursor = currentTool === 'pan' ? 'grab' : 'crosshair';
 }
 
-// Gestion des couleurs
+function handleUndo() {
+  connectionManager.emit('undo');
+  showNotification('Annulé ↶');
+}
+
+function showNotification(text) {
+  const notification = document.createElement('div');
+  notification.className = 'undo-notification';
+  notification.textContent = text;
+  document.body.appendChild(notification);
+  setTimeout(() => {
+    if (notification.parentNode) notification.parentNode.removeChild(notification);
+  }, 800);
+}
+
+// Couleurs
 document.querySelectorAll('.color-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.color-btn').forEach(c => c.classList.remove('active'));
@@ -145,7 +162,7 @@ function updateColorPicker() {
   colorPicker.value = currentColor;
 }
 
-// Slider d'épaisseur
+// Slider épaisseur
 const sizeSlider = document.getElementById('size-slider');
 const sizeDisplay = document.getElementById('size-display');
 sizeSlider.addEventListener('input', (e) => {
@@ -153,32 +170,25 @@ sizeSlider.addEventListener('input', (e) => {
   sizeDisplay.textContent = currentSize + 'px';
 });
 
-// Zoom avec molette
+// Zoom molette
 stage.on('wheel', (e) => {
   e.evt.preventDefault();
-  
   const scaleBy = 1.1;
-  const stage = e.target.getStage();
   const pointer = stage.getPointerPosition();
   const mousePointTo = {
     x: (pointer.x - stage.x()) / stage.scaleX(),
     y: (pointer.y - stage.y()) / stage.scaleY(),
   };
-
   let direction = e.evt.deltaY > 0 ? -1 : 1;
   let newScale = stage.scaleX() * (scaleBy ** direction);
-  
   newScale = Math.max(0.1, Math.min(5, newScale));
-  
   stage.scale({ x: newScale, y: newScale });
-  
   const newPos = {
     x: pointer.x - mousePointTo.x * newScale,
     y: pointer.y - mousePointTo.y * newScale,
   };
   stage.position(newPos);
   stage.batchDraw();
-  
   currentZoom = newScale;
   updateZoomDisplay();
 });
@@ -210,9 +220,7 @@ document.getElementById('reset-zoom')?.addEventListener('click', () => {
 
 function updateZoomDisplay() {
   const zoomIndicator = document.getElementById('zoom-indicator');
-  if (zoomIndicator) {
-    zoomIndicator.textContent = Math.round(currentZoom * 100) + '%';
-  }
+  if (zoomIndicator) zoomIndicator.textContent = Math.round(currentZoom * 100) + '%';
 }
 
 // Pipette couleur
@@ -220,7 +228,6 @@ function pickColor(x, y) {
   const canvas = stage.toCanvas({ x: x, y: y, width: 1, height: 1 });
   const ctx = canvas.getContext('2d');
   const pixel = ctx.getImageData(0, 0, 1, 1).data;
-  
   if (pixel[3] > 0) {
     const color = `#${((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2]).toString(16).slice(1)}`;
     currentColor = color;
@@ -229,13 +236,10 @@ function pickColor(x, y) {
   }
 }
 
-// Fonctions pour créer des formes
+// Fonctions formes
 function createCircle(startPos, endPos) {
   const radius = Math.sqrt(Math.pow(endPos.x - startPos.x, 2) + Math.pow(endPos.y - startPos.y, 2));
-  return new Konva.Circle({
-    x: startPos.x, y: startPos.y, radius: radius,
-    stroke: currentColor, strokeWidth: currentSize, fill: 'transparent'
-  });
+  return new Konva.Circle({ x: startPos.x, y: startPos.y, radius, stroke: currentColor, strokeWidth: currentSize, fill: 'transparent' });
 }
 
 function createRectangle(startPos, endPos) {
@@ -248,7 +252,6 @@ function createRectangle(startPos, endPos) {
 
 function createTriangle(startPos, endPos) {
   const width = endPos.x - startPos.x;
-  const height = endPos.y - startPos.y;
   return new Konva.Line({
     points: [startPos.x, endPos.y, startPos.x + width/2, startPos.y, endPos.x, endPos.y, startPos.x, endPos.y],
     stroke: currentColor, strokeWidth: currentSize, fill: 'transparent', closed: true
@@ -259,56 +262,43 @@ function createStar(startPos, endPos) {
   const centerX = (startPos.x + endPos.x) / 2;
   const centerY = (startPos.y + endPos.y) / 2;
   const radius = Math.sqrt(Math.pow(endPos.x - centerX, 2) + Math.pow(endPos.y - centerY, 2));
-  return new Konva.Star({
-    x: centerX, y: centerY, numPoints: 5, innerRadius: radius * 0.4, outerRadius: radius,
-    stroke: currentColor, strokeWidth: currentSize, fill: 'transparent'
-  });
+  return new Konva.Star({ x: centerX, y: centerY, numPoints: 5, innerRadius: radius * 0.4, outerRadius: radius, stroke: currentColor, strokeWidth: currentSize, fill: 'transparent' });
 }
 
 function createLine(startPos, endPos) {
-  return new Konva.Line({
-    points: [startPos.x, startPos.y, endPos.x, endPos.y],
-    stroke: currentColor, strokeWidth: currentSize, lineCap: 'round'
-  });
+  return new Konva.Line({ points: [startPos.x, startPos.y, endPos.x, endPos.y], stroke: currentColor, strokeWidth: currentSize, lineCap: 'round' });
 }
 
 function createArrow(startPos, endPos) {
-  const line = new Konva.Line({
-    points: [startPos.x, startPos.y, endPos.x, endPos.y],
-    stroke: currentColor, strokeWidth: currentSize, lineCap: 'round'
-  });
-  
-  // Ajouter pointe de flèche
   const angle = Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x);
   const arrowLength = 20;
   const arrowAngle = Math.PI / 6;
-  
   const arrow1X = endPos.x - arrowLength * Math.cos(angle - arrowAngle);
   const arrow1Y = endPos.y - arrowLength * Math.sin(angle - arrowAngle);
   const arrow2X = endPos.x - arrowLength * Math.cos(angle + arrowAngle);
   const arrow2Y = endPos.y - arrowLength * Math.sin(angle + arrowAngle);
-  
-  line.points([startPos.x, startPos.y, endPos.x, endPos.y, arrow1X, arrow1Y, endPos.x, endPos.y, arrow2X, arrow2Y]);
-  return line;
+  return new Konva.Line({
+    points: [startPos.x, startPos.y, endPos.x, endPos.y, arrow1X, arrow1Y, endPos.x, endPos.y, arrow2X, arrow2Y],
+    stroke: currentColor, strokeWidth: currentSize, lineCap: 'round'
+  });
 }
 
-// === ÉVÉNEMENTS DE DESSIN ===
+// Raccourcis clavier
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'z') {
+    e.preventDefault();
+    handleUndo();
+  }
+});
+
+// === EVENEMENTS DE DESSIN ===
 
 stage.on('mousedown touchstart pointerdown', (evt) => {
   const pointer = stage.getPointerPosition();
-  
-  if (currentTool === 'pan') {
-    lastPanPos = pointer;
-    return;
-  }
 
-  if (currentTool === 'eyedropper') {
-    const localPos = getScenePos(pointer);
-    pickColor(localPos.x, localPos.y);
-    return;
-  }
+  if (currentTool === 'pan') { lastPanPos = pointer; return; }
+  if (currentTool === 'eyedropper') { pickColor(getScenePos(pointer).x, getScenePos(pointer).y); return; }
 
-  // Formes prédéfinies
   if (currentTool.startsWith('shape-')) {
     isCreatingShape = true;
     shapeStartPos = getScenePos(pointer);
@@ -327,7 +317,6 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
     return;
   }
 
-  // BRUSH ANIMÉS - Utilise le BrushManager unifié
   if (['sparkles', 'watercolor', 'electric', 'petals', 'neon', 'fire'].includes(currentTool)) {
     isDrawing = true;
     currentId = generateId();
@@ -335,7 +324,6 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
     return;
   }
 
-  // Dessin normal
   isDrawing = true;
   currentId = generateId();
   lastLine = new Konva.Line({
@@ -348,7 +336,6 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
     lineJoin: 'round'
   });
   layer.add(lastLine);
-  
   emitDrawingThrottled({
     id: currentId,
     points: [scenePos.x, scenePos.y],
@@ -361,44 +348,25 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
 stage.on('mousemove touchmove pointermove', (evt) => {
   const pointer = stage.getPointerPosition();
 
-  // Pan
   if (currentTool === 'pan' && lastPanPos) {
-    const dx = pointer.x - lastPanPos.x;
-    const dy = pointer.y - lastPanPos.y;
-    stage.x(stage.x() + dx);
-    stage.y(stage.y() + dy);
+    stage.x(stage.x() + pointer.x - lastPanPos.x);
+    stage.y(stage.y() + pointer.y - lastPanPos.y);
     stage.batchDraw();
     lastPanPos = pointer;
     return;
   }
 
-  // Formes en cours de création
   if (isCreatingShape && shapeStartPos) {
     if (shapePreview) shapePreview.destroy();
-
     const scenePos = getScenePos(pointer);
-
     switch(currentTool) {
-      case 'shape-circle':
-        shapePreview = createCircle(shapeStartPos, scenePos);
-        break;
-      case 'shape-rectangle':
-        shapePreview = createRectangle(shapeStartPos, scenePos);
-        break;
-      case 'shape-triangle':
-        shapePreview = createTriangle(shapeStartPos, scenePos);
-        break;
-      case 'shape-star':
-        shapePreview = createStar(shapeStartPos, scenePos);
-        break;
-      case 'shape-line':
-        shapePreview = createLine(shapeStartPos, scenePos);
-        break;
-      case 'shape-arrow':
-        shapePreview = createArrow(shapeStartPos, scenePos);
-        break;
+      case 'shape-circle': shapePreview = createCircle(shapeStartPos, scenePos); break;
+      case 'shape-rectangle': shapePreview = createRectangle(shapeStartPos, scenePos); break;
+      case 'shape-triangle': shapePreview = createTriangle(shapeStartPos, scenePos); break;
+      case 'shape-star': shapePreview = createStar(shapeStartPos, scenePos); break;
+      case 'shape-line': shapePreview = createLine(shapeStartPos, scenePos); break;
+      case 'shape-arrow': shapePreview = createArrow(shapeStartPos, scenePos); break;
     }
-
     if (shapePreview) {
       shapePreview.opacity(0.5);
       layer.add(shapePreview);
@@ -408,7 +376,6 @@ stage.on('mousemove touchmove pointermove', (evt) => {
   }
 
   if (!isDrawing) return;
-
   const pressure = getPressure(evt);
   const pressureSize = getPressureSize(pressure);
   const scenePos = getScenePos(pointer);
@@ -419,18 +386,15 @@ stage.on('mousemove touchmove pointermove', (evt) => {
     return;
   }
 
-  // BRUSH ANIMÉS - Continuer l'effet
   if (['sparkles', 'watercolor', 'electric', 'petals', 'neon', 'fire'].includes(currentTool)) {
     brushManager.createAndEmitEffect(currentTool, scenePos.x, scenePos.y, currentColor, pressureSize);
     return;
   }
 
-  // Dessin normal
   if (lastLine) {
     lastLine.points(lastLine.points().concat([scenePos.x, scenePos.y]));
     lastLine.strokeWidth(pressureSize);
     layer.batchDraw();
-
     emitDrawingThrottled({
       id: currentId,
       points: lastLine.points(),
@@ -442,23 +406,13 @@ stage.on('mousemove touchmove pointermove', (evt) => {
 });
 
 stage.on('mouseup touchend pointerup', () => {
-  if (currentTool === 'pan') {
-    lastPanPos = null;
-    return;
-  }
+  if (currentTool === 'pan') { lastPanPos = null; return; }
 
-  // Finaliser forme
   if (isCreatingShape && shapePreview) {
     shapePreview.opacity(1);
     const shapeId = generateId();
     shapePreview.id(shapeId);
-
-    connectionManager.emit('shapeCreate', {
-      id: shapeId,
-      type: currentTool,
-      config: shapePreview.getAttrs()
-    });
-
+    connectionManager.emit('shapeCreate', { id: shapeId, type: currentTool, config: shapePreview.getAttrs() });
     isCreatingShape = false;
     shapeStartPos = null;
     shapePreview = null;
@@ -468,18 +422,12 @@ stage.on('mouseup touchend pointerup', () => {
   if (!isDrawing) return;
   isDrawing = false;
 
-  // Déclencher le fade-out pour les brushs animés
   if (['sparkles', 'watercolor', 'electric', 'petals', 'neon', 'fire'].includes(currentTool)) {
     brushManager.endStroke();
     return;
   }
+  if (currentTool === 'texture') return;
 
-  // Le brush texture n'a pas besoin d'événement final
-  if (currentTool === 'texture') {
-    return;
-  }
-
-  // Événement final pour le dessin normal
   if (lastLine) {
     connectionManager.emit('draw', {
       id: currentId,
@@ -508,18 +456,13 @@ document.getElementById('back-home')?.addEventListener('click', () => {
 
 socket.on('initShapes', shapes => {
   shapes.forEach(data => {
-    // ✅ FIX: Gérer les tracés permanents en plus des lignes normales
     if (data.type === 'permanentTrace') {
       brushManager.renderPermanentTraces([data]);
     } else {
       const line = new Konva.Line({
-        id: data.id,
-        points: data.points,
-        stroke: data.stroke,
-        strokeWidth: data.strokeWidth,
-        globalCompositeOperation: data.globalCompositeOperation,
-        lineCap: 'round',
-        lineJoin: 'round'
+        id: data.id, points: data.points, stroke: data.stroke,
+        strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+        lineCap: 'round', lineJoin: 'round'
       });
       layer.add(line);
     }
@@ -529,16 +472,11 @@ socket.on('initShapes', shapes => {
 
 socket.on('drawing', data => {
   let shape = layer.findOne('#' + data.id);
-  
   if (!shape) {
     shape = new Konva.Line({
-      id: data.id,
-      points: data.points,
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      globalCompositeOperation: data.globalCompositeOperation,
-      lineCap: 'round',
-      lineJoin: 'round'
+      id: data.id, points: data.points, stroke: data.stroke,
+      strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+      lineCap: 'round', lineJoin: 'round'
     });
     layer.add(shape);
   } else {
@@ -548,18 +486,9 @@ socket.on('drawing', data => {
   layer.batchDraw();
 });
 
-// BRUSH EFFECTS - Utilise le BrushManager unifié
-socket.on('brushEffect', (data) => {
-  brushManager.createNetworkEffect(data);
-});
-
-socket.on('cleanupUserEffects', (data) => {
-  brushManager.cleanupUserEffects(data.socketId);
-});
-
-socket.on('texture', data => {
-  createTextureEffect(data.x, data.y, data.color, data.size);
-});
+socket.on('brushEffect', (data) => brushManager.createNetworkEffect(data));
+socket.on('cleanupUserEffects', (data) => brushManager.cleanupUserEffects(data.socketId));
+socket.on('texture', data => createTextureEffect(data.x, data.y, data.color, data.size));
 
 socket.on('draw', data => {
   let shape = layer.findOne('#' + data.id);
@@ -570,13 +499,9 @@ socket.on('draw', data => {
     shape.globalCompositeOperation(data.globalCompositeOperation);
   } else {
     const line = new Konva.Line({
-      id: data.id,
-      points: data.points,
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      globalCompositeOperation: data.globalCompositeOperation,
-      lineCap: 'round',
-      lineJoin: 'round'
+      id: data.id, points: data.points, stroke: data.stroke,
+      strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+      lineCap: 'round', lineJoin: 'round'
     });
     layer.add(line);
   }
@@ -585,34 +510,26 @@ socket.on('draw', data => {
 
 socket.on('deleteShape', ({ id }) => {
   const shape = layer.findOne('#' + id);
-  if (shape) {
-    shape.destroy();
-    layer.draw();
-  }
+  if (shape) { shape.destroy(); layer.draw(); }
 });
 
 socket.on('clearCanvas', () => {
   layer.destroyChildren();
-  brushManager.clearEverything(); // ✅ FIX: Supprimer aussi les tracés permanents
+  brushManager.clearEverything();
   layer.draw();
 });
 
 socket.on('restoreShapes', (shapes) => {
   layer.destroyChildren();
-  brushManager.clearEverything(); // ✅ FIX: Utiliser clearEverything au lieu de clearAllEffects
+  brushManager.clearEverything();
   shapes.forEach(data => {
-    // ✅ FIX: Gérer les tracés permanents en plus des lignes normales
     if (data.type === 'permanentTrace') {
       brushManager.renderPermanentTraces([data]);
     } else {
       const line = new Konva.Line({
-        id: data.id,
-        points: data.points,
-        stroke: data.stroke,
-        strokeWidth: data.strokeWidth,
-        globalCompositeOperation: data.globalCompositeOperation,
-        lineCap: 'round',
-        lineJoin: 'round'
+        id: data.id, points: data.points, stroke: data.stroke,
+        strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+        lineCap: 'round', lineJoin: 'round'
       });
       layer.add(line);
     }
@@ -623,72 +540,18 @@ socket.on('restoreShapes', (shapes) => {
 socket.on('shapeCreate', data => {
   let shape;
   const config = data.config;
-  
   switch(data.type) {
-    case 'shape-circle':
-      shape = new Konva.Circle(config);
-      break;
-    case 'shape-rectangle':
-      shape = new Konva.Rect(config);
-      break;
-    case 'shape-triangle':
-    case 'shape-line':
-    case 'shape-arrow':
-      shape = new Konva.Line(config);
-      break;
-    case 'shape-star':
-      shape = new Konva.Star(config);
-      break;
+    case 'shape-circle': shape = new Konva.Circle(config); break;
+    case 'shape-rectangle': shape = new Konva.Rect(config); break;
+    case 'shape-triangle': case 'shape-line': case 'shape-arrow': shape = new Konva.Line(config); break;
+    case 'shape-star': shape = new Konva.Star(config); break;
   }
-  
-  if (shape) {
-    shape.id(data.id);
-    layer.add(shape);
-    layer.draw();
-  }
+  if (shape) { shape.id(data.id); layer.add(shape); layer.draw(); }
 });
 
-// NOUVEL ÉVÉNEMENT - Reset des brush effects par admin
 socket.on('adminResetBrushEffects', () => {
   brushManager.clearAllEffects();
-  
-  // Notification pour informer l'utilisateur
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(255, 140, 0, 0.9);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    z-index: 2000;
-    animation: fadeInOut 2s ease-out;
-    pointer-events: none;
-  `;
-  notification.textContent = '✨ Effets réinitialisés par Admin';
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 2000);
-  
-  console.log('🎨 Admin reset: All brush effects cleared');
+  showNotification('Effets réinitialisés');
 });
 
-// Animation CSS pour la notification
-const notificationStyle = document.createElement('style');
-notificationStyle.textContent = `
-  @keyframes fadeInOut {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-  }
-`;
-document.head.appendChild(notificationStyle);
-
-console.log('✅ Simplified Atelier.js loaded with unified BrushManager');
+console.log('Atelier.js V4 loaded');
