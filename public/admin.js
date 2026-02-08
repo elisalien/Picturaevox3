@@ -211,24 +211,46 @@ socket.on('brushEffect', (data) => {
   brushManager.createNetworkEffect(data);
 });
 
+socket.on('cleanupUserEffects', (data) => {
+  brushManager.cleanupUserEffects(data.socketId);
+});
+
 socket.on('texture', data => {
-  const particleCount = 4;
+  const particleCount = 8;
   for (let i = 0; i < particleCount; i++) {
     const angle = Math.random() * Math.PI * 2;
     const distance = Math.random() * data.size * 1.4;
     const offsetX = Math.cos(angle) * distance;
     const offsetY = Math.sin(angle) * distance;
-    
-    const dot = new Konva.Circle({
-      x: data.x + offsetX,
-      y: data.y + offsetY,
-      radius: 1 + Math.random() * 2,
-      fill: data.color,
-      opacity: 0.4 + Math.random() * 0.3,
-      hitStrokeWidth: 0,
-      listening: false
-    });
-    layer.add(dot);
+    const alpha = 0.35 + Math.random() * 0.35;
+    const dotSize = 1.2 + Math.random() * (data.size / 2.5);
+
+    if (Math.random() < 0.7) {
+      const lineLength = 1 + Math.random() * 2.5;
+      const lineAngle = Math.random() * Math.PI * 2;
+      const line = new Konva.Line({
+        points: [data.x + offsetX, data.y + offsetY, data.x + offsetX + Math.cos(lineAngle) * lineLength, data.y + offsetY + Math.sin(lineAngle) * lineLength],
+        stroke: data.color,
+        strokeWidth: dotSize * 0.8,
+        opacity: alpha,
+        lineCap: 'round',
+        lineJoin: 'round',
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(line);
+    } else {
+      const dot = new Konva.Circle({
+        x: data.x + offsetX,
+        y: data.y + offsetY,
+        radius: dotSize * 0.6,
+        fill: data.color,
+        opacity: alpha * 0.9,
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(dot);
+    }
   }
   layer.batchDraw();
 });
