@@ -84,19 +84,43 @@ const emitTextureThrottled = throttle((data) => {
 }, 150);
 
 function createTextureEffect(x, y, color, size) {
-  for (let i = 0; i < 7; i++) {
-    const offsetX = (Math.random() - 0.5) * 12;
-    const offsetY = (Math.random() - 0.5) * 12;
-    const alpha = 0.4 + Math.random() * 0.4;
-    const dot = new Konva.Line({
-      points: [x + offsetX, y + offsetY, x + offsetX + Math.random() * 3, y + offsetY + Math.random() * 3],
-      stroke: color,
-      strokeWidth: 1.5 + Math.random() * (size / 2.5),
-      globalAlpha: alpha,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-    layer.add(dot);
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const particleCount = isMobile ? 6 : 8;
+
+  for (let i = 0; i < particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * size * 1.4;
+    const offsetX = Math.cos(angle) * distance;
+    const offsetY = Math.sin(angle) * distance;
+    const alpha = 0.35 + Math.random() * 0.35;
+    const dotSize = 1.2 + Math.random() * (size / 2.5);
+
+    if (Math.random() < 0.7) {
+      const lineLength = 1 + Math.random() * 2.5;
+      const lineAngle = Math.random() * Math.PI * 2;
+      const line = new Konva.Line({
+        points: [x + offsetX, y + offsetY, x + offsetX + Math.cos(lineAngle) * lineLength, y + offsetY + Math.sin(lineAngle) * lineLength],
+        stroke: color,
+        strokeWidth: dotSize * 0.8,
+        opacity: alpha,
+        lineCap: 'round',
+        lineJoin: 'round',
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(line);
+    } else {
+      const dot = new Konva.Circle({
+        x: x + offsetX,
+        y: y + offsetY,
+        radius: dotSize * 0.6,
+        fill: color,
+        opacity: alpha * 0.9,
+        hitStrokeWidth: 0,
+        listening: false
+      });
+      layer.add(dot);
+    }
   }
   layer.batchDraw();
 }
@@ -437,6 +461,12 @@ stage.on('mouseup touchend pointerup', () => {
       globalCompositeOperation: lastLine.globalCompositeOperation()
     });
   }
+});
+
+// Bouton Undo dédié
+document.getElementById('undo-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  handleUndo();
 });
 
 // Boutons d'action
