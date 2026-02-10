@@ -86,6 +86,61 @@ const MAX_SHAPES = 1000; // Augmenté de 500 à 1000
 const CLEANUP_INTERVAL = 60000;
 const SHAPE_TTL = 600000; // Augmenté de 5 min à 10 min
 
+// === CADAVRE EXQUIS GAME STATE ===
+const gameState = {
+  status: 'waiting', // waiting | playing | revealing
+  players: new Map(),
+  teams: [],
+  timer: null,
+  timerValue: 0,
+  drawings: new Map(),
+  lastResults: null,
+  settings: { turnDuration: 30 }
+};
+
+function getGamePlayerList() {
+  return Array.from(gameState.players.values()).map(p => ({ pseudo: p.pseudo, socketId: p.socketId }));
+}
+
+function getGameTeamCount(playerCount) {
+  return Math.floor(playerCount / 3);
+}
+
+function finalizeGame() {
+  if (gameState.status === 'revealing') return;
+  gameState.status = 'revealing';
+
+  const results = gameState.teams.map(team => ({
+    teamId: team.id,
+    head: gameState.drawings.get(`${team.id}_head`) || null,
+    torso: gameState.drawings.get(`${team.id}_torso`) || null,
+    legs: gameState.drawings.get(`${team.id}_legs`) || null,
+    members: team.members.map(m => ({ pseudo: m.pseudo, role: m.role }))
+  }));
+
+  gameState.lastResults = results;
+
+  io.to('game-room').emit('game:done');
+  io.to('gamemaster-room').emit('game:revealing', results);
+  io.to('exquiscadavre-room').emit('game:reveal', results);
+
+  console.log(`🎭 Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings`);
+}
+
+function resetGame() {
+  gameState.status = 'waiting';
+  gameState.teams = [];
+  gameState.drawings.clear();
+  gameState.lastResults = null;
+  if (gameState.timer) {
+    clearInterval(gameState.timer);
+    gameState.timer = null;
+  }
+  gameState.timerValue = 0;
+  // Don't clear players — they stay in the lobby
+  console.log('🔄 Game reset');
+}
+
 // === FONCTIONS DE VALIDATION ===
 
 function isValidHexColor(color) {
@@ -257,6 +312,18 @@ app.get('/chantilly', (req, res) => {
 
 app.get('/atelier', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'atelier.html'));
+});
+
+app.get('/game', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'game.html'));
+});
+
+app.get('/gamemaster', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'gamemaster.html'));
+});
+
+app.get('/exquiscadavre', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'exquiscadavre.html'));
 });
 
 app.get('/', (req, res) => {
@@ -493,10 +560,156 @@ io.on('connection', socket => {
     io.emit('adminResetBrushEffects');
   });
 
+  // === CADAVRE EXQUIS GAME EVENTS ===
+
+  socket.on('game:join', ({ pseudo }) => {
+    gameState.players.set(socket.id, { pseudo, socketId: socket.id });
+    socket.join('game-room');
+    const playerList = getGamePlayerList();
+    io.to('game-room').emit('game:playerList', playerList);
+    io.to('gamemaster-room').emit('game:playerList', playerList);
+    io.to('gamemaster-room').emit('game:teamCount', getGameTeamCount(playerList.length));
+    console.log(`🎮 Player joined game: ${pseudo} (${gameState.players.size} players)`);
+  });
+
+  socket.on('gamemaster:join', () => {
+    socket.join('gamemaster-room');
+    const playerList = getGamePlayerList();
+    socket.emit('game:playerList', playerList);
+    socket.emit('game:teamCount', getGameTeamCount(playerList.length));
+    socket.emit('game:status', gameState.status);
+    if (gameState.status === 'playing') {
+      socket.emit('game:timer', gameState.timerValue);
+    }
+    if (gameState.status === 'revealing' && gameState.lastResults) {
+      socket.emit('game:revealing', gameState.lastResults);
+    }
+    console.log('👑 Gamemaster connected');
+  });
+
+  socket.on('exquiscadavre:join', () => {
+    socket.join('exquiscadavre-room');
+    if (gameState.status === 'revealing' && gameState.lastResults) {
+      socket.emit('game:reveal', gameState.lastResults);
+    }
+    console.log('🎭 Exquiscadavre viewer connected');
+  });
+
+  socket.on('game:start', () => {
+    if (gameState.status !== 'waiting') return;
+    const players = Array.from(gameState.players.values());
+    if (players.length < 3) {
+      socket.emit('game:error', 'Il faut au moins 3 joueurs');
+      return;
+    }
+
+    const shuffled = [...players].sort(() => Math.random() - 0.5);
+    const roles = ['head', 'torso', 'legs'];
+    const teams = [];
+
+    for (let i = 0; i + 2 < shuffled.length; i += 3) {
+      teams.push({
+        id: teams.length,
+        members: [
+          { ...shuffled[i], role: roles[0] },
+          { ...shuffled[i + 1], role: roles[1] },
+          { ...shuffled[i + 2], role: roles[2] }
+        ]
+      });
+    }
+
+    // Spectators = players not in any team
+    const teamPlayerIds = new Set(teams.flatMap(t => t.members.map(m => m.socketId)));
+
+    gameState.teams = teams;
+    gameState.status = 'playing';
+    gameState.drawings.clear();
+
+    // Notify each player of their role
+    teams.forEach(team => {
+      team.members.forEach(member => {
+        io.to(member.socketId).emit('game:assigned', {
+          role: member.role,
+          teamId: team.id,
+          totalTeams: teams.length
+        });
+      });
+    });
+
+    // Notify spectators
+    gameState.players.forEach((player, socketId) => {
+      if (!teamPlayerIds.has(socketId)) {
+        io.to(socketId).emit('game:spectator');
+      }
+    });
+
+    io.to('gamemaster-room').emit('game:started', {
+      teams: teams.map(t => ({
+        id: t.id,
+        members: t.members.map(m => ({ pseudo: m.pseudo, role: m.role }))
+      })),
+      totalTeams: teams.length
+    });
+
+    // Start timer
+    gameState.timerValue = gameState.settings.turnDuration;
+    io.to('game-room').emit('game:timerStart', gameState.timerValue);
+    io.to('gamemaster-room').emit('game:timerStart', gameState.timerValue);
+
+    gameState.timer = setInterval(() => {
+      gameState.timerValue--;
+      io.to('game-room').emit('game:timer', gameState.timerValue);
+      io.to('gamemaster-room').emit('game:timer', gameState.timerValue);
+
+      if (gameState.timerValue <= 0) {
+        clearInterval(gameState.timer);
+        gameState.timer = null;
+        io.to('game-room').emit('game:timeUp');
+        finalizeGame();
+      }
+    }, 1000);
+
+    console.log(`🎮 Game started: ${teams.length} teams, ${players.length} players`);
+  });
+
+  socket.on('game:submitDrawing', ({ imageData, role, teamId }) => {
+    const key = `${teamId}_${role}`;
+    if (gameState.drawings.has(key)) return; // Already submitted
+    gameState.drawings.set(key, imageData);
+    console.log(`🎨 Drawing received: team ${teamId}, ${role} (${gameState.drawings.size}/${gameState.teams.length * 3})`);
+
+    // Check if all drawings collected
+    if (gameState.drawings.size >= gameState.teams.length * 3) {
+      if (gameState.timer) {
+        clearInterval(gameState.timer);
+        gameState.timer = null;
+      }
+      finalizeGame();
+    }
+  });
+
+  socket.on('game:reset', () => {
+    resetGame();
+    io.to('game-room').emit('game:reset');
+    io.to('gamemaster-room').emit('game:reset');
+    io.to('exquiscadavre-room').emit('game:reset');
+  });
+
+  // === END GAME EVENTS ===
+
   socket.on('disconnect', (reason) => {
     const remainingClients = io.engine.clientsCount;
     console.log(`👋 USER DISCONNECTED: ${socket.id} (Reason: ${reason}, Remaining: ${remainingClients})`);
     socket.broadcast.emit('cleanupUserEffects', { socketId: socket.id });
+
+    // Remove from game if applicable
+    if (gameState.players.has(socket.id)) {
+      gameState.players.delete(socket.id);
+      const playerList = getGamePlayerList();
+      io.to('game-room').emit('game:playerList', playerList);
+      io.to('gamemaster-room').emit('game:playerList', playerList);
+      io.to('gamemaster-room').emit('game:teamCount', getGameTeamCount(playerList.length));
+    }
   });
 });
 

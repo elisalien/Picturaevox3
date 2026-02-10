@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Cadavre Exquis — R&eacute;v&eacute;lation</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      overflow: auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .reveal-header {
+      text-align: center;
+      padding: 32px 20px 16px;
+    }
+    .reveal-header h1 {
+      color: #fff;
+      font-size: 32px;
+      margin: 0 0 6px;
+      font-weight: 700;
+    }
+    .reveal-header .subtitle {
+      color: #8b7aff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Waiting state */
+    .waiting-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+    }
+    .waiting-state .big-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .waiting-state p {
+      font-size: 16px;
+      color: #999;
+    }
+
+    /* Characters grid */
+    .characters-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      justify-content: center;
+      padding: 20px;
+      max-width: 1200px;
+    }
+
+    .character-card {
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 20px;
+      padding: 20px 16px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(107, 91, 255, 0.15);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+      max-width: 300px;
+    }
+    .character-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .character-card h3 {
+      color: #8b7aff;
+      font-size: 15px;
+      margin: 0 0 12px;
+      font-weight: 600;
+    }
+
+    .character-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #1a1a2e;
+    }
+
+    .character-part {
+      width: 100%;
+      opacity: 0;
+      transform-origin: center top;
+    }
+    .character-part img {
+      width: 100%;
+      display: block;
+    }
+    .character-part.revealed {
+      animation: revealPart 0.5s ease-out forwards;
+    }
+
+    @keyframes revealPart {
+      0% { opacity: 0; transform: scaleY(0.3); }
+      60% { opacity: 1; transform: scaleY(1.02); }
+      100% { opacity: 1; transform: scaleY(1); }
+    }
+
+    /* Rig animations — subtle loops */
+    .character-body.animated .character-part.part-head {
+      animation: rigHead 4s ease-in-out infinite;
+    }
+    .character-body.animated .character-part.part-torso {
+      animation: rigTorso 5s ease-in-out infinite;
+    }
+    .character-body.animated .character-part.part-legs {
+      animation: rigLegs 3.5s ease-in-out infinite;
+    }
+
+    @keyframes rigHead {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(2deg); }
+      75% { transform: rotate(-2deg); }
+    }
+    @keyframes rigTorso {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(3px); }
+    }
+    @keyframes rigLegs {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(2px); }
+    }
+
+    .character-credits {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .credit-tag {
+      padding: 3px 10px;
+      border-radius: 16px;
+      font-size: 11px;
+    }
+    .credit-tag.head { background: rgba(255, 82, 82, 0.12); color: #FF8A80; }
+    .credit-tag.torso { background: rgba(64, 196, 255, 0.12); color: #80D8FF; }
+    .credit-tag.legs { background: rgba(105, 240, 174, 0.12); color: #B9F6CA; }
+
+    .missing-part {
+      width: 100%;
+      height: 80px;
+      background: rgba(255,255,255,0.03);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    @media (max-width: 480px) {
+      .reveal-header h1 { font-size: 24px; }
+      .characters-container { gap: 20px; padding: 12px; }
+      .character-card { padding: 14px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal-header">
+    <h1>Cadavre Exquis</h1>
+    <div class="subtitle">R&eacute;v&eacute;lation</div>
+  </div>
+
+  <div class="waiting-state" id="waiting-state">
+    <div class="big-icon">&#x1F3A8;</div>
+    <p>En attente des dessins...</p>
+  </div>
+
+  <div class="characters-container" id="characters-container"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="exquiscadavre.js"></script>
+</body>
+</html>
