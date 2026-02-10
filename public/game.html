@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Cadavre Exquis — Jouer</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: auto;
+    }
+
+    /* === LOBBY === */
+    .lobby {
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .lobby h1 {
+      color: #fff;
+      font-size: 28px;
+      margin: 0 0 6px;
+      font-weight: 700;
+    }
+    .lobby .subtitle {
+      color: #999;
+      font-size: 14px;
+      margin-bottom: 28px;
+    }
+    .lobby-card {
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 16px;
+      padding: 28px 24px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    }
+    .pseudo-input {
+      width: 100%;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(107, 91, 255, 0.3);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .pseudo-input:focus { border-color: #6b5bff; }
+    .pseudo-input::placeholder { color: #666; }
+
+    .join-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 14px;
+      background: linear-gradient(135deg, #6b5bff, #8b7aff);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .join-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,91,255,0.4); }
+    .join-btn:active { transform: scale(0.97); }
+    .join-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .waiting-section {
+      display: none;
+      margin-top: 20px;
+      text-align: center;
+    }
+    .waiting-section.visible { display: block; }
+
+    .waiting-text {
+      color: #999;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .player-count {
+      color: #6b5bff;
+      font-weight: 700;
+      font-size: 22px;
+    }
+    .player-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    .player-tag {
+      background: rgba(107, 91, 255, 0.15);
+      color: #b8adff;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+    }
+    .pulse-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: #6b5bff;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* === DRAW PHASE === */
+    .draw-phase {
+      display: none;
+      width: 100%;
+      max-width: 520px;
+      text-align: center;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
+    .draw-phase.visible { display: block; }
+
+    .draw-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    .role-badge {
+      background: linear-gradient(135deg, #6b5bff, #8b7aff);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .timer-display {
+      background: rgba(18, 18, 24, 0.92);
+      border: 2px solid rgba(107, 91, 255, 0.3);
+      border-radius: 12px;
+      padding: 6px 16px;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      min-width: 50px;
+      text-align: center;
+    }
+    .timer-display.urgent {
+      border-color: #FF5252;
+      color: #FF5252;
+      animation: pulse 0.5s ease-in-out infinite;
+    }
+
+    #game-canvas-container {
+      margin: 0 auto;
+    }
+
+    .draw-toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 14px;
+      padding: 10px 12px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .draw-toolbar .color-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .draw-toolbar .color-dot:hover { transform: scale(1.15); }
+    .draw-toolbar .color-dot.active {
+      border-color: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.4);
+      transform: scale(1.15);
+    }
+    .draw-toolbar .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background: rgba(255,255,255,0.1);
+      margin: 0 2px;
+      flex-shrink: 0;
+    }
+    .draw-toolbar .size-slider {
+      width: 70px;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(to right, rgba(107,91,255,0.3), rgba(107,91,255,0.8));
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+    .draw-toolbar .size-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #6b5bff; border: 2px solid #fff;
+      cursor: pointer;
+    }
+    .draw-toolbar .size-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #6b5bff; border: 2px solid #fff;
+      cursor: pointer;
+    }
+    .submit-btn {
+      padding: 8px 18px;
+      background: linear-gradient(135deg, #4CAF50, #66BB6A);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .submit-btn:hover { transform: scale(1.05); }
+    .submit-btn:active { transform: scale(0.95); }
+
+    /* === POPUPS === */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+    .popup-overlay.visible {
+      display: flex;
+    }
+    .popup-card {
+      background: rgba(18, 18, 24, 0.96);
+      border-radius: 20px;
+      padding: 32px 28px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+      animation: popIn 0.3s ease-out;
+    }
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .popup-card h2 {
+      color: #fff;
+      font-size: 22px;
+      margin: 0 0 12px;
+    }
+    .popup-card p {
+      color: #bbb;
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0 0 20px;
+    }
+    .popup-card .popup-btn {
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #6b5bff, #8b7aff);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .popup-card .popup-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,91,255,0.4); }
+
+    /* === DONE PHASE === */
+    .done-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .done-phase.visible { display: block; }
+    .done-phase h2 {
+      color: #fff;
+      font-size: 24px;
+      margin: 0 0 12px;
+    }
+    .done-phase p {
+      color: #bbb;
+      font-size: 15px;
+      margin: 0 0 24px;
+      line-height: 1.5;
+    }
+    .replay-btn {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, #6b5bff, #8b7aff);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .replay-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(107,91,255,0.4); }
+
+    /* === SPECTATOR === */
+    .spectator-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .spectator-phase.visible { display: block; }
+    .spectator-phase h2 { color: #fff; font-size: 22px; margin: 0 0 10px; }
+    .spectator-phase p { color: #bbb; font-size: 14px; line-height: 1.5; }
+
+    @media (max-width: 480px) {
+      .lobby h1 { font-size: 22px; }
+      .draw-toolbar .color-dot { width: 24px; height: 24px; }
+      .draw-toolbar .size-slider { width: 50px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOBBY -->
+  <div class="lobby" id="lobby-phase">
+    <h1>Cadavre Exquis</h1>
+    <p class="subtitle">Dessine un personnage avec les autres joueurs</p>
+    <div class="lobby-card">
+      <input type="text" class="pseudo-input" id="pseudo-input" placeholder="Ton pseudo..." maxlength="20" autocomplete="off" />
+      <button class="join-btn" id="join-btn">Rejoindre</button>
+
+      <div class="waiting-section" id="waiting-section">
+        <p class="waiting-text"><span class="pulse-dot"></span>En attente du lancement...</p>
+        <div class="player-count"><span id="player-count">0</span> joueurs</div>
+        <div class="player-list" id="player-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAW PHASE -->
+  <div class="draw-phase" id="draw-phase">
+    <div class="draw-header">
+      <div class="role-badge" id="role-badge">---</div>
+      <div class="timer-display" id="timer-display">30</div>
+    </div>
+    <div id="game-canvas-container"></div>
+    <div class="draw-toolbar" id="draw-toolbar">
+      <div class="color-dot active" data-color="#FFFFFF" style="background:#FFFFFF;"></div>
+      <div class="color-dot" data-color="#FF5252" style="background:#FF5252;"></div>
+      <div class="color-dot" data-color="#FFD740" style="background:#FFD740;"></div>
+      <div class="color-dot" data-color="#40C4FF" style="background:#40C4FF;"></div>
+      <div class="color-dot" data-color="#69F0AE" style="background:#69F0AE;"></div>
+      <div class="color-dot" data-color="#E040FB" style="background:#E040FB;"></div>
+      <div class="color-dot" data-color="#FF9800" style="background:#FF9800;"></div>
+      <div class="color-dot" data-color="#000000" style="background:#000000; border-color: rgba(255,255,255,0.2);"></div>
+      <div class="toolbar-divider"></div>
+      <input type="range" class="size-slider" id="game-size-slider" min="1" max="20" value="4" />
+      <button class="tool-btn" id="eraser-btn" title="Gomme" style="width:36px;height:36px;font-size:15px;">&#x1F9FD;</button>
+      <button class="tool-btn" id="undo-btn" title="Annuler" style="width:36px;height:36px;font-size:15px;">&#x21B6;</button>
+      <div class="toolbar-divider"></div>
+      <button class="submit-btn" id="submit-btn">Envoyer</button>
+    </div>
+  </div>
+
+  <!-- DONE PHASE -->
+  <div class="done-phase" id="done-phase">
+    <h2>Dessin envoy&eacute; !</h2>
+    <p>Regarde la projection pour d&eacute;couvrir les personnages assembl&eacute;s !</p>
+    <button class="replay-btn" id="replay-btn">Rejouer</button>
+  </div>
+
+  <!-- SPECTATOR PHASE -->
+  <div class="spectator-phase" id="spectator-phase">
+    <h2>Tu es spectateur cette manche</h2>
+    <p>Pas assez de places dans les &eacute;quipes, mais tu pourras jouer &agrave; la prochaine !</p>
+    <p>Regarde la projection pour voir les r&eacute;sultats.</p>
+  </div>
+
+  <!-- RULES POPUP -->
+  <div class="popup-overlay" id="rules-popup">
+    <div class="popup-card">
+      <h2>C'est parti !</h2>
+      <p id="rules-text">Tu dessines la <strong>t&ecirc;te</strong> du personnage.<br>
+      Les rep&egrave;res t'aident &agrave; aligner ton dessin avec les autres joueurs, mais tu dessines comme tu veux !</p>
+      <button class="popup-btn" id="rules-ok-btn">Compris !</button>
+    </div>
+  </div>
+
+  <!-- PROJECTION POPUP (shown after submitting) -->
+  <div class="popup-overlay" id="projection-popup">
+    <div class="popup-card">
+      <h2>Dessin envoy&eacute; !</h2>
+      <p>Regarde la <strong>projection</strong> pour d&eacute;couvrir le r&eacute;sultat une fois que tout le monde a termin&eacute;.</p>
+      <button class="popup-btn" id="projection-ok-btn">OK</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="gameCanvas.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
