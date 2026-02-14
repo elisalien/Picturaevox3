@@ -605,8 +605,9 @@ io.on('connection', socket => {
 
   socket.on('exquiscadavre:join', () => {
     socket.join('exquiscadavre-room');
-    if (gameState.status === 'revealing' && gameState.lastResults) {
-      socket.emit('game:reveal', gameState.lastResults);
+    // Envoyer toute la galerie pour afficher les anciennes parties
+    if (gameGallery.length > 0) {
+      socket.emit('game:gallery', gameGallery);
     }
     console.log('🎭 Exquiscadavre viewer connected');
   });

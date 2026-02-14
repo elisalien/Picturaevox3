@@ -10,24 +10,58 @@ const socket = io({
 const waitingState = document.getElementById('waiting-state');
 const container = document.getElementById('characters-container');
 
+let roundCount = 0;
+
 // Join reveal room
 socket.emit('exquiscadavre:join');
 
+// Full gallery on initial load — render all past rounds without animation
+socket.on('game:gallery', (gallery) => {
+  if (!gallery || gallery.length === 0) return;
+  waitingState.style.display = 'none';
+
+  // Render all rounds from gallery
+  gallery.forEach((round, idx) => {
+    roundCount++;
+    addRoundToPage(round.teams, roundCount, false);
+  });
+});
+
+// New round results — append with animation
 socket.on('game:reveal', (results) => {
   waitingState.style.display = 'none';
-  container.innerHTML = '';
-  revealCharacters(results);
+  roundCount++;
+  addRoundToPage(results, roundCount, true);
+
+  // Scroll to the new round
+  setTimeout(() => {
+    const lastSeparator = container.querySelector('.round-separator:last-of-type');
+    if (lastSeparator) {
+      lastSeparator.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, 200);
 });
 
+// Reset: don't clear old drawings, just show waiting again for next round
 socket.on('game:reset', () => {
-  waitingState.style.display = '';
-  container.innerHTML = '';
+  // Keep all existing characters on the page
 });
 
-function revealCharacters(teams) {
+function addRoundToPage(teams, roundNum, animate) {
+  // Round separator
+  const separator = document.createElement('div');
+  separator.className = 'round-separator';
+  separator.innerHTML = `<span>Manche ${roundNum}</span>`;
+  container.appendChild(separator);
+
+  // Characters row for this round
+  const roundRow = document.createElement('div');
+  roundRow.className = 'round-row';
+
   teams.forEach((team, teamIndex) => {
     const card = document.createElement('div');
     card.className = 'character-card';
+    if (!animate) card.classList.add('visible'); // No animation for old results
 
     const title = document.createElement('h3');
     title.textContent = `Personnage ${teamIndex + 1}`;
@@ -36,16 +70,13 @@ function revealCharacters(teams) {
     const body = document.createElement('div');
     body.className = 'character-body';
 
-    // Head
-    const headPart = createPart(team.head, 'head');
+    const headPart = createPart(team.head, 'head', !animate);
     body.appendChild(headPart);
 
-    // Torso
-    const torsoPart = createPart(team.torso, 'torso');
+    const torsoPart = createPart(team.torso, 'torso', !animate);
     body.appendChild(torsoPart);
 
-    // Legs
-    const legsPart = createPart(team.legs, 'legs');
+    const legsPart = createPart(team.legs, 'legs', !animate);
     body.appendChild(legsPart);
 
     card.appendChild(body);
@@ -61,38 +92,43 @@ function revealCharacters(teams) {
     });
     card.appendChild(credits);
 
-    container.appendChild(card);
+    roundRow.appendChild(card);
 
-    // Staggered reveal animation
-    const cardDelay = teamIndex * 800;
+    if (animate) {
+      const cardDelay = teamIndex * 800;
 
-    setTimeout(() => {
-      card.classList.add('visible');
-    }, cardDelay);
+      setTimeout(() => {
+        card.classList.add('visible');
+      }, cardDelay);
 
-    // Reveal parts one by one
-    setTimeout(() => {
-      headPart.classList.add('revealed');
-    }, cardDelay + 300);
+      setTimeout(() => {
+        headPart.classList.add('revealed');
+      }, cardDelay + 300);
 
-    setTimeout(() => {
-      torsoPart.classList.add('revealed');
-    }, cardDelay + 600);
+      setTimeout(() => {
+        torsoPart.classList.add('revealed');
+      }, cardDelay + 600);
 
-    setTimeout(() => {
-      legsPart.classList.add('revealed');
-    }, cardDelay + 900);
+      setTimeout(() => {
+        legsPart.classList.add('revealed');
+      }, cardDelay + 900);
 
-    // Start rig animations after all parts revealed
-    setTimeout(() => {
+      setTimeout(() => {
+        body.classList.add('animated');
+      }, cardDelay + 1400);
+    } else {
+      // Old results: show animated rig directly
       body.classList.add('animated');
-    }, cardDelay + 1400);
+    }
   });
+
+  container.appendChild(roundRow);
 }
 
-function createPart(imageData, partName) {
+function createPart(imageData, partName, showImmediately) {
   const part = document.createElement('div');
   part.className = `character-part part-${partName}`;
+  if (showImmediately) part.classList.add('revealed');
 
   if (imageData) {
     const img = document.createElement('img');
