@@ -48,24 +48,20 @@ socket.on('game:reset', () => {
 });
 
 function addRoundToPage(teams, roundNum, animate) {
-  // Round separator
-  const separator = document.createElement('div');
-  separator.className = 'round-separator';
-  separator.innerHTML = `<span>Manche ${roundNum}</span>`;
-  container.appendChild(separator);
+  // Thin line separator between rounds
+  if (container.children.length > 0) {
+    const separator = document.createElement('div');
+    separator.className = 'round-separator';
+    container.appendChild(separator);
+  }
 
-  // Characters row for this round
   const roundRow = document.createElement('div');
   roundRow.className = 'round-row';
 
   teams.forEach((team, teamIndex) => {
     const card = document.createElement('div');
     card.className = 'character-card';
-    if (!animate) card.classList.add('visible'); // No animation for old results
-
-    const title = document.createElement('h3');
-    title.textContent = `Personnage ${teamIndex + 1}`;
-    card.appendChild(title);
+    if (!animate) card.classList.add('visible');
 
     const body = document.createElement('div');
     body.className = 'character-body';
@@ -81,15 +77,10 @@ function addRoundToPage(teams, roundNum, animate) {
 
     card.appendChild(body);
 
-    // Credits
+    // Credits — plain text names
     const credits = document.createElement('div');
     credits.className = 'character-credits';
-    team.members.forEach(m => {
-      const tag = document.createElement('span');
-      tag.className = 'credit-tag ' + m.role;
-      tag.textContent = `${escapeHtml(m.pseudo)} (${roleLabel(m.role)})`;
-      credits.appendChild(tag);
-    });
+    credits.textContent = team.members.map(m => escapeHtml(m.pseudo)).join(' · ');
     card.appendChild(credits);
 
     roundRow.appendChild(card);
