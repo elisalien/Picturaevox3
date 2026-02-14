@@ -95,8 +95,12 @@ const gameState = {
   timerValue: 0,
   drawings: new Map(),
   lastResults: null,
+  finalizeTimeout: null,
   settings: { turnDuration: 30 }
 };
+
+// Galerie persistante des résultats de jeu
+const gameGallery = [];
 
 function getGamePlayerList() {
   return Array.from(gameState.players.values()).map(p => ({ pseudo: p.pseudo, socketId: p.socketId }));
@@ -120,11 +124,18 @@ function finalizeGame() {
 
   gameState.lastResults = results;
 
+  // Ajouter à la galerie persistante
+  gameGallery.push({
+    timestamp: Date.now(),
+    teams: results
+  });
+
   io.to('game-room').emit('game:done');
   io.to('gamemaster-room').emit('game:revealing', results);
+  io.to('gamemaster-room').emit('game:galleryUpdate', gameGallery);
   io.to('exquiscadavre-room').emit('game:reveal', results);
 
-  console.log(`🎭 Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings`);
+  console.log(`🎭 Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings, gallery: ${gameGallery.length} rounds`);
 }
 
 function resetGame() {
@@ -135,6 +146,10 @@ function resetGame() {
   if (gameState.timer) {
     clearInterval(gameState.timer);
     gameState.timer = null;
+  }
+  if (gameState.finalizeTimeout) {
+    clearTimeout(gameState.finalizeTimeout);
+    gameState.finalizeTimeout = null;
   }
   gameState.timerValue = 0;
   // Don't clear players — they stay in the lobby
@@ -578,6 +593,7 @@ io.on('connection', socket => {
     socket.emit('game:playerList', playerList);
     socket.emit('game:teamCount', getGameTeamCount(playerList.length));
     socket.emit('game:status', gameState.status);
+    socket.emit('game:gallery', gameGallery);
     if (gameState.status === 'playing') {
       socket.emit('game:timer', gameState.timerValue);
     }
@@ -665,7 +681,11 @@ io.on('connection', socket => {
         clearInterval(gameState.timer);
         gameState.timer = null;
         io.to('game-room').emit('game:timeUp');
-        finalizeGame();
+        // Grace period: 3s pour que les clients exportent et envoient leurs dessins
+        gameState.finalizeTimeout = setTimeout(() => {
+          gameState.finalizeTimeout = null;
+          finalizeGame();
+        }, 3000);
       }
     }, 1000);
 
@@ -684,6 +704,10 @@ io.on('connection', socket => {
         clearInterval(gameState.timer);
         gameState.timer = null;
       }
+      if (gameState.finalizeTimeout) {
+        clearTimeout(gameState.finalizeTimeout);
+        gameState.finalizeTimeout = null;
+      }
       finalizeGame();
     }
   });
@@ -693,6 +717,12 @@ io.on('connection', socket => {
     io.to('game-room').emit('game:reset');
     io.to('gamemaster-room').emit('game:reset');
     io.to('exquiscadavre-room').emit('game:reset');
+  });
+
+  socket.on('game:clearGallery', () => {
+    gameGallery.length = 0;
+    io.to('gamemaster-room').emit('game:gallery', gameGallery);
+    console.log('🗑️ Game gallery cleared');
   });
 
   // === END GAME EVENTS ===
