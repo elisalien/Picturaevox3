@@ -221,10 +221,94 @@
     }
     .link-section a:hover { opacity: 1; }
 
+    /* === GALLERY === */
+    .gallery-section {
+      display: none;
+    }
+    .gallery-section.visible { display: block; }
+    .gallery-section h3 {
+      color: #fff;
+      font-size: 16px;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .gallery-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .gallery-btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .gallery-btn:hover { transform: scale(1.03); }
+    .gallery-btn:active { transform: scale(0.97); }
+    .gallery-btn.download {
+      background: linear-gradient(135deg, #00d9ff, #0099cc);
+      color: #fff;
+    }
+    .gallery-btn.clear {
+      background: rgba(255, 82, 82, 0.15);
+      color: #FF8A80;
+      border: 1px solid rgba(255, 82, 82, 0.2);
+    }
+    .gallery-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .gallery-character {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+      width: 140px;
+    }
+    .gallery-character .gallery-label {
+      color: #888;
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+    .gallery-character .gallery-body {
+      display: flex;
+      flex-direction: column;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+    .gallery-character .gallery-body img {
+      width: 100%;
+      display: block;
+    }
+    .gallery-character .gallery-missing {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      font-size: 10px;
+    }
+    .gallery-round-label {
+      color: #00d9ff;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 12px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(0, 217, 255, 0.15);
+    }
+    .gallery-round-label:first-child { margin-top: 0; }
+
     @media (max-width: 480px) {
       .gm-header h1 { font-size: 22px; }
       .stat-value { font-size: 28px; }
       .gm-timer { font-size: 36px; }
+      .gallery-character { width: 110px; }
     }
   </style>
 </head>
@@ -263,6 +347,17 @@
     <div class="gm-card teams-section" id="teams-section">
       <h3>&Eacute;quipes</h3>
       <div id="teams-list"></div>
+    </div>
+
+    <div class="gm-card gallery-section" id="gallery-section">
+      <h3>
+        <span>Galerie</span>
+        <div class="gallery-actions">
+          <button class="gallery-btn download" id="download-gallery-btn">Telecharger</button>
+          <button class="gallery-btn clear" id="clear-gallery-btn">Vider</button>
+        </div>
+      </h3>
+      <div id="gallery-grid" class="gallery-grid"></div>
     </div>
 
     <div class="link-section">
