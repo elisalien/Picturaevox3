@@ -1,10 +1,12 @@
-// gameCanvas.js — Module de dessin pour le Cadavre Exquis
+// gameCanvas.js — Picturaevox 3.5 — Module de dessin pour les modes de jeu
 class GameCanvas {
   constructor(containerId, options = {}) {
     this.containerId = containerId;
     this.container = document.getElementById(containerId);
-    this.role = options.role || 'head'; // head | torso | legs
-    this.onReady = options.onReady || null;
+    this.role = options.role || null; // head | torso | legs (Cadavre Exquis only)
+    this.mode = options.mode || 'free'; // free | cadavre | telephone | devine | theme
+    this.onDraw = options.onDraw || null; // Callback for live drawing stream (Dessine-Devine)
+    this.readOnly = options.readOnly || false;
 
     this.currentColor = '#FFFFFF';
     this.currentSize = 4;
@@ -14,7 +16,7 @@ class GameCanvas {
     this.lines = []; // local undo stack
 
     this.setupCanvas();
-    this.drawGuides();
+    if (this.role) this.drawGuides();
   }
 
   setupCanvas() {
@@ -36,10 +38,11 @@ class GameCanvas {
     this.stage.add(this.guideLayer);
     this.stage.add(this.drawLayer);
 
-    // Drawing events
-    this.stage.on('mousedown touchstart', (e) => this.onPointerDown(e));
-    this.stage.on('mousemove touchmove', (e) => this.onPointerMove(e));
-    this.stage.on('mouseup touchend', () => this.onPointerUp());
+    if (!this.readOnly) {
+      this.stage.on('mousedown touchstart', (e) => this.onPointerDown(e));
+      this.stage.on('mousemove touchmove', (e) => this.onPointerMove(e));
+      this.stage.on('mouseup touchend', () => this.onPointerUp());
+    }
 
     // Style the container
     this.container.style.width = this.width + 'px';
@@ -48,8 +51,8 @@ class GameCanvas {
     this.container.style.borderRadius = '12px';
     this.container.style.overflow = 'hidden';
     this.container.style.border = '2px solid rgba(107, 91, 255, 0.3)';
-    this.container.style.background = '#1a1a2e';
-    this.container.style.cursor = 'crosshair';
+    this.container.style.background = '#000';
+    this.container.style.cursor = this.readOnly ? 'default' : 'crosshair';
     this.container.style.touchAction = 'none';
   }
 
@@ -62,7 +65,6 @@ class GameCanvas {
     const fontSize = 11;
 
     if (this.role === 'head') {
-      // Bottom guide — neck connection
       this.guideLayer.add(new Konva.Line({
         points: [0, h - 1, w, h - 1],
         stroke: guideColor, strokeWidth: 2, dash: [8, 6]
@@ -71,7 +73,6 @@ class GameCanvas {
         text: 'cou', x: w - 30, y: h - 18,
         fill: labelColor, fontSize, fontFamily: 'sans-serif'
       }));
-      // Neck hint marks
       this.guideLayer.add(new Konva.Line({
         points: [w * 0.38, h - 8, w * 0.38, h],
         stroke: guideColor, strokeWidth: 1.5
@@ -81,7 +82,6 @@ class GameCanvas {
         stroke: guideColor, strokeWidth: 1.5
       }));
     } else if (this.role === 'torso') {
-      // Top guide — neck connection
       this.guideLayer.add(new Konva.Line({
         points: [0, 0, w, 0],
         stroke: guideColor, strokeWidth: 2, dash: [8, 6]
@@ -98,7 +98,6 @@ class GameCanvas {
         points: [w * 0.62, 0, w * 0.62, 8],
         stroke: guideColor, strokeWidth: 1.5
       }));
-      // Bottom guide — waist connection
       this.guideLayer.add(new Konva.Line({
         points: [0, h - 1, w, h - 1],
         stroke: guideColor, strokeWidth: 2, dash: [8, 6]
@@ -116,7 +115,6 @@ class GameCanvas {
         stroke: guideColor, strokeWidth: 1.5
       }));
     } else if (this.role === 'legs') {
-      // Top guide — waist connection
       this.guideLayer.add(new Konva.Line({
         points: [0, 0, w, 0],
         stroke: guideColor, strokeWidth: 2, dash: [8, 6]
@@ -154,6 +152,14 @@ class GameCanvas {
     });
     this.drawLayer.add(this.lastLine);
     this.lines.push(this.lastLine);
+
+    if (this.onDraw) {
+      this.onDraw({
+        points: [pos.x, pos.y],
+        strokeWidth: this.currentSize,
+        globalCompositeOperation: compositeOp
+      });
+    }
   }
 
   onPointerMove(evt) {
@@ -161,6 +167,14 @@ class GameCanvas {
     const pos = this.stage.getPointerPosition();
     this.lastLine.points(this.lastLine.points().concat([pos.x, pos.y]));
     this.drawLayer.batchDraw();
+
+    if (this.onDraw) {
+      this.onDraw({
+        points: this.lastLine.points(),
+        strokeWidth: this.currentSize,
+        globalCompositeOperation: this.lastLine.globalCompositeOperation()
+      });
+    }
   }
 
   onPointerUp() {
@@ -195,12 +209,30 @@ class GameCanvas {
     this.drawLayer.batchDraw();
   }
 
+  // Render incoming drawing data (for Dessine-Devine guesser view)
+  renderDrawData(data) {
+    if (!data || !data.points) return;
+    const line = new Konva.Line({
+      points: data.points,
+      stroke: '#FFFFFF',
+      strokeWidth: data.strokeWidth || 4,
+      globalCompositeOperation: data.globalCompositeOperation || 'source-over',
+      lineCap: 'round',
+      lineJoin: 'round',
+      listening: false
+    });
+    this.drawLayer.add(line);
+    this.drawLayer.batchDraw();
+  }
+
   exportImage() {
-    // Export only the draw layer (no guides)
     return this.drawLayer.toDataURL({ pixelRatio: 2 });
   }
 
   destroy() {
-    this.stage.destroy();
+    if (this.stage) {
+      this.stage.destroy();
+      this.stage = null;
+    }
   }
 }
