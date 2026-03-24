@@ -40,6 +40,17 @@ const io = require('socket.io')(http, {
         return callback(null, true);
       }
 
+      // ✅ FIX: Toujours autoriser les IPs de réseau local (hotspot, LAN)
+      try {
+        const url = new URL(origin);
+        const host = url.hostname;
+        if (host === 'localhost' || host === '127.0.0.1' ||
+            host.startsWith('192.168.') || host.startsWith('10.') ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+          return callback(null, true);
+        }
+      } catch (e) { /* ignore parse errors */ }
+
       // Vérifier si l'origine est autorisée
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -52,10 +63,10 @@ const io = require('socket.io')(http, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   allowEIO3: true,
-  pingTimeout: 10000,
-  pingInterval: 5000,
+  pingTimeout: 30000,
+  pingInterval: 10000,
   perMessageDeflate: {
     threshold: 1024
   }
@@ -1586,10 +1597,34 @@ const PORT = process.env.PORT || 3000;
 http.listen(PORT, '0.0.0.0', async () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Afficher toutes les IPs locales pour faciliter la connexion hotspot
+  try {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    const localIPs = [];
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          localIPs.push({ name, address: net.address });
+        }
+      }
+    }
+    if (localIPs.length > 0) {
+      console.log(`\n📡 Adresses réseau disponibles :`);
+      localIPs.forEach(({ name, address }) => {
+        console.log(`   → http://${address}:${PORT}  (${name})`);
+      });
+      console.log(`   Utilisez ces adresses pour connecter les téléphones via hotspot\n`);
+    } else {
+      console.log(`⚠️ Aucune interface réseau détectée — vérifiez votre connexion hotspot`);
+    }
+  } catch (e) { /* ignore */ }
+
   console.log(`✅ Undo history: ${MAX_HISTORY} actions in memory, ${MAX_HISTORY_REDIS} in Redis`);
-  console.log(`🏓 Ping/Pong monitoring enabled`);
+  console.log(`🏓 Ping/Pong monitoring enabled (timeout: 30s)`);
   const effectiveEnv = process.env.NODE_ENV || 'development';
-  console.log(`🔒 CORS security: ${effectiveEnv === 'development' ? 'Development mode' : 'Production mode'}`);
+  console.log(`🔒 CORS security: ${effectiveEnv === 'development' ? 'Development mode' : 'Production mode'} + local IPs always allowed`);
   console.log(`📊 Max shapes: ${MAX_SHAPES}, TTL: ${SHAPE_TTL / 1000}s`);
 
   // Charger les shapes depuis Redis au démarrage

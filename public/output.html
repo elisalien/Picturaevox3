@@ -413,10 +413,12 @@
     // === OUTPUT PAGE - PROJECTION ===
     const socket = io({
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
-      timeout: 10000,
-      transports: ['websocket', 'polling']
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 20,
+      timeout: 20000,
+      transports: ['polling', 'websocket'],
+      forceNew: false
     });
 
     // === KONVA CANVAS (shared drawing — lobby) ===

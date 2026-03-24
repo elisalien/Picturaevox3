@@ -3,11 +3,12 @@
 
 const socket = io({
   reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  reconnectionAttempts: 10,
-  timeout: 10000,
-  transports: ['websocket', 'polling']
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 10000,
+  reconnectionAttempts: 20,
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  forceNew: false
 });
 
 // === KONVA CANVAS SETUP ===
@@ -24,6 +25,25 @@ window.stage = stage;
 
 // === CONNECTION MANAGER ===
 const connectionManager = new ConnectionManager(socket);
+
+// === TRANSPORT MONITOR (network diagnostics) ===
+socket.on('connect', () => {
+  const updateTransport = () => {
+    const el = document.getElementById('transport-display');
+    if (el && socket.io?.engine) {
+      const name = socket.io.engine.transport?.name || '?';
+      el.textContent = name === 'polling' ? 'HTTP' : name === 'websocket' ? 'WS' : name;
+    }
+  };
+  updateTransport();
+  if (socket.io?.engine) {
+    socket.io.engine.on('upgrade', updateTransport);
+  }
+});
+socket.on('disconnect', () => {
+  const el = document.getElementById('transport-display');
+  if (el) el.textContent = '--';
+});
 
 // === BRUSH MANAGER ===
 const brushManager = new BrushManager(layer, socket);
