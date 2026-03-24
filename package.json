@@ -1,7 +1,7 @@
 {
-  "name": "live-drawing-app",
-  "version": "1.0.0",
-  "description": "Application de dessin collaboratif en temps réel avec Konva et Socket.IO",
+  "name": "picturaevox",
+  "version": "3.5.0",
+  "description": "Installation interactive de dessin collaboratif avec modes de jeu",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

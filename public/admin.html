@@ -3,26 +3,134 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Admin — Picturævox</title>
+  <title>Admin — Picturavox 3.5</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* ADMIN TOOLBAR */
+    /* === ADMIN 3.5 - GLASSMORPHISM DARK + TURQUOISE === */
+
+    :root {
+      --accent: #00d9ff;
+      --accent-dim: rgba(0, 217, 255, 0.15);
+      --accent-glow: rgba(0, 217, 255, 0.4);
+      --glass-bg: rgba(12, 14, 22, 0.82);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.04);
+      --danger: #f44336;
+      --danger-dim: rgba(244, 67, 54, 0.15);
+      --success: #4CAF50;
+      --warning: #FF9800;
+      --surface: rgba(18, 20, 30, 0.92);
+      --text-primary: #eee;
+      --text-secondary: #999;
+      --text-muted: #666;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+    }
+
+    body {
+      background: #070810;
+    }
+
+    /* === ADMIN BADGE === */
+    .admin-badge {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 2000;
+      padding: 6px 16px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(0, 217, 255, 0.3);
+      border-radius: 20px;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 2px 16px rgba(0, 217, 255, 0.12);
+      transition: opacity 0.3s;
+    }
+
+    /* === STATUS BAR (top right) === */
+    .status-bar {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      display: flex;
+      gap: 8px;
+      z-index: 2000;
+      transition: opacity 0.3s;
+    }
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--glass-bg);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #bbb;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    #latency-display {
+      font-weight: 600;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 11px;
+    }
+    .player-count-badge {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* === HIDE UI BUTTON === */
+    #hide-ui {
+      position: fixed;
+      top: 14px;
+      right: 240px;
+      z-index: 2000;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--glass-border);
+      border-radius: 50%;
+      background: var(--glass-bg);
+      color: #bbb;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      transition: all 0.2s;
+    }
+    #hide-ui:hover {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-color: rgba(0, 217, 255, 0.3);
+    }
+
+    /* === BOTTOM TOOLBAR === */
     .admin-toolbar {
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 6px;
+      gap: 5px;
       align-items: center;
       padding: 10px 16px;
-      background: rgba(18, 18, 24, 0.92);
+      background: var(--surface);
       border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 var(--glass-highlight);
       z-index: 1000;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(0, 217, 255, 0.15);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--glass-border);
       transition: opacity 0.3s, transform 0.3s;
     }
     .admin-toolbar.hidden {
@@ -34,122 +142,412 @@
     .admin-toolbar .tool-btn {
       width: 40px;
       height: 40px;
-      font-size: 17px;
+      font-size: 16px;
       border: none;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.06);
-      color: #ccc;
+      border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.05);
+      color: #aaa;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.15s ease;
+      position: relative;
     }
     .admin-toolbar .tool-btn:hover {
-      background: rgba(0, 217, 255, 0.15);
+      background: var(--accent-dim);
       color: #fff;
     }
     .admin-toolbar .tool-btn.active {
       background: linear-gradient(135deg, #00b8d4, #00d9ff);
       color: #fff;
-      box-shadow: 0 0 12px rgba(0, 217, 255, 0.4);
+      box-shadow: 0 0 14px var(--accent-glow);
     }
     .admin-toolbar .tool-btn.danger:hover {
-      background: rgba(244, 67, 54, 0.2);
+      background: var(--danger-dim);
+      color: var(--danger);
+    }
+    .admin-toolbar .tool-btn .btn-label {
+      display: none;
     }
 
     .toolbar-divider {
       width: 1px;
       height: 28px;
-      background: rgba(255,255,255,0.1);
-      margin: 0 2px;
+      background: rgba(255,255,255,0.08);
+      margin: 0 3px;
       flex-shrink: 0;
     }
 
-    /* ADMIN BADGE */
-    .admin-badge {
+    /* === RIGHT SIDEBAR - GAME CONTROL PANEL === */
+    .sidebar {
       position: fixed;
-      top: 12px;
-      left: 12px;
-      z-index: 2000;
-      padding: 6px 14px;
-      background: rgba(0, 217, 255, 0.12);
-      border: 1px solid rgba(0, 217, 255, 0.25);
-      border-radius: 20px;
-      color: #00d9ff;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: var(--glass-bg);
+      border-left: 1px solid var(--glass-border);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      z-index: 1500;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+      overflow: hidden;
+      box-shadow: -4px 0 40px rgba(0,0,0,0.4);
+    }
+    .sidebar.collapsed {
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
     }
 
-    /* HIDE UI */
-    #hide-ui {
+    .sidebar-toggle {
       position: fixed;
-      top: 12px;
-      right: 60px;
-      z-index: 2000;
-      width: 36px;
-      height: 36px;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 50%;
-      background: rgba(18, 18, 24, 0.85);
-      color: #bbb;
+      top: 50%;
+      right: 320px;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 56px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      color: #888;
       cursor: pointer;
-      font-size: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(10px);
-      transition: all 0.2s;
+      font-size: 12px;
+      z-index: 1501;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    #hide-ui:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .sidebar-toggle:hover {
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+    .sidebar.collapsed + .sidebar-toggle {
+      right: 0;
+    }
 
-    /* STATUS BAR */
-    .status-bar {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      display: flex;
-      gap: 6px;
-      z-index: 999;
+    .sidebar-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--glass-border);
+      flex-shrink: 0;
     }
-    .status-indicator {
+    .sidebar-header h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .sidebar-header .subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+    }
+    .sidebar-body::-webkit-scrollbar { width: 4px; }
+    .sidebar-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    /* === SIDEBAR SECTIONS === */
+    .panel-section {
+      margin-bottom: 16px;
+    }
+    .panel-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    /* Game cards */
+    .game-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    .game-card.enabled {
+      border-color: rgba(0, 217, 255, 0.2);
+    }
+    .game-card-header {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      background: rgba(18, 18, 24, 0.85);
-      border-radius: 20px;
-      font-size: 11px;
-      color: #bbb;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+      justify-content: space-between;
+      margin-bottom: 6px;
     }
-    #latency-display { font-weight: 600; font-family: 'SF Mono', monospace; font-size: 11px; }
+    .game-card-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .game-card-status {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .game-card-status.waiting { background: rgba(255,152,0,0.15); color: #FF9800; }
+    .game-card-status.playing { background: rgba(76,175,80,0.15); color: #4CAF50; }
+    .game-card-status.stopped { background: rgba(255,255,255,0.06); color: #666; }
+    .game-card-status.revealing { background: rgba(0,217,255,0.15); color: var(--accent); }
 
-    /* MINIMAP */
+    .game-card-body {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .game-card-players {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      transition: 0.3s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background: #888;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: rgba(0, 217, 255, 0.3);
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(16px);
+      background: var(--accent);
+    }
+
+    /* Buttons */
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .btn-accent {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(0, 217, 255, 0.2);
+    }
+    .btn-accent:hover {
+      background: rgba(0, 217, 255, 0.25);
+      box-shadow: 0 0 12px rgba(0, 217, 255, 0.15);
+    }
+    .btn-accent:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn-danger {
+      background: var(--danger-dim);
+      color: var(--danger);
+      border: 1px solid rgba(244, 67, 54, 0.2);
+    }
+    .btn-danger:hover {
+      background: rgba(244, 67, 54, 0.25);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      color: var(--text-secondary);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .btn-ghost:hover {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-primary);
+    }
+
+    /* Output layout checkboxes */
+    .layout-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .layout-option label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      user-select: none;
+    }
+    .layout-option input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      background: rgba(255,255,255,0.04);
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .layout-option input[type="checkbox"]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .layout-option input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 5px;
+      height: 9px;
+      border: solid #000;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    /* Theme input */
+    .theme-input-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .theme-input-group input,
+    .theme-input-group select {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 11px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .theme-input-group input:focus,
+    .theme-input-group select:focus {
+      border-color: rgba(0, 217, 255, 0.4);
+    }
+    .theme-input-group select {
+      cursor: pointer;
+    }
+    .theme-input-group select option {
+      background: #1a1a2e;
+      color: #eee;
+    }
+
+    /* Minimap */
     #minimap {
       position: fixed;
       bottom: 80px;
-      right: 12px;
-      border: 1px solid rgba(0, 217, 255, 0.25);
-      background: rgba(18, 18, 24, 0.85);
+      right: 334px;
+      border: 1px solid rgba(0, 217, 255, 0.2);
+      background: rgba(12, 14, 22, 0.9);
       z-index: 1000;
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: opacity 0.3s, right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sidebar.collapsed ~ #minimap {
+      right: 14px;
     }
 
-    /* MOBILE */
+    /* Notification toast */
+    .admin-notification {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 217, 255, 0.9);
+      color: #000;
+      padding: 10px 22px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 5000;
+      animation: adminNotifPop 1.2s ease-out forwards;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 24px var(--accent-glow);
+    }
+    @keyframes adminNotifPop {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    /* === SIDEBAR FOOTER === */
+    .sidebar-footer {
+      padding: 12px 14px;
+      border-top: 1px solid var(--glass-border);
+      flex-shrink: 0;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 900px) {
+      .sidebar { width: 280px; }
+      .sidebar.collapsed + .sidebar-toggle { right: 0; }
+      .sidebar-toggle { right: 280px; }
+      #minimap { right: 294px; }
+      .sidebar.collapsed ~ #minimap { right: 10px; }
+      #hide-ui { right: 200px; }
+    }
     @media (max-width: 768px) {
       .admin-toolbar { padding: 8px 10px; gap: 4px; bottom: 10px; }
-      .admin-toolbar .tool-btn { width: 36px; height: 36px; font-size: 15px; }
-      #minimap { bottom: 70px; right: 6px; }
-      .admin-badge { top: 6px; left: 6px; font-size: 10px; padding: 5px 10px; }
-      #hide-ui { top: 6px; right: 50px; width: 32px; height: 32px; font-size: 12px; }
+      .admin-toolbar .tool-btn { width: 36px; height: 36px; font-size: 14px; }
+      .admin-badge { top: 8px; left: 8px; font-size: 9px; padding: 5px 10px; }
+      #hide-ui { top: 8px; width: 32px; height: 32px; font-size: 12px; }
+      .sidebar { width: 260px; }
+      .sidebar-toggle { right: 260px; }
+      #minimap { width: 120px !important; height: 90px !important; bottom: 64px; right: 274px; }
+      .sidebar.collapsed ~ #minimap { right: 8px; }
+    }
+    @media (max-width: 480px) {
+      .sidebar { width: 100vw; }
+      .sidebar-toggle { display: none; }
+      #minimap { display: none; }
     }
   </style>
 </head>
@@ -157,38 +555,190 @@
   <div id="canvas-container"></div>
 
   <!-- ADMIN BADGE -->
-  <div class="admin-badge">ADMIN</div>
+  <div class="admin-badge" id="admin-badge">ADMIN</div>
 
   <!-- STATUS BAR -->
-  <div class="status-bar">
+  <div class="status-bar" id="status-bar">
     <div id="connection-indicator" class="status-indicator">
-      <span style="font-size: 14px;">●</span>
+      <span style="font-size: 14px;">&#9679;</span>
       <span>Connexion...</span>
     </div>
     <div class="status-indicator">
-      <span style="font-size: 12px;">📡</span>
+      <span style="font-size: 11px;">PING</span>
       <span id="latency-display">--ms</span>
+    </div>
+    <div class="status-indicator">
+      <span class="player-count-badge" id="player-count">0</span>
+      <span>connectes</span>
     </div>
   </div>
 
-  <!-- HIDE UI BUTTON -->
-  <button id="hide-ui" title="Masquer/Afficher (H)">👁</button>
+  <!-- HIDE UI -->
+  <button id="hide-ui" title="Masquer/Afficher (H)">H</button>
 
-  <!-- TOOLBAR ADMIN -->
+  <!-- BOTTOM TOOLBAR -->
   <div class="admin-toolbar" id="admin-toolbar">
-    <button id="pan" class="tool-btn active" title="Déplacement">✋</button>
-    <button id="zoom-in" class="tool-btn" title="Zoom +">🔍+</button>
-    <button id="zoom-out" class="tool-btn" title="Zoom -">🔍-</button>
-    <button id="reset-zoom" class="tool-btn" title="Reset vue">🎯</button>
+    <button id="pan" class="tool-btn active" title="Navigation (V)">&#9995;</button>
+    <button id="zoom-in" class="tool-btn" title="Zoom + (+)">+</button>
+    <button id="zoom-out" class="tool-btn" title="Zoom - (-)">-</button>
+    <button id="reset-zoom" class="tool-btn" title="Reset vue (0)">1:1</button>
     <div class="toolbar-divider"></div>
-    <button id="delete-mode" class="tool-btn" title="Supprimer un élément">🗑️</button>
-    <button id="undo" class="tool-btn" title="Annuler">↶</button>
+    <button id="delete-mode" class="tool-btn" title="Supprimer (D)">&#x2716;</button>
+    <button id="undo" class="tool-btn" title="Annuler (Ctrl+Z)">&#x21B6;</button>
     <div class="toolbar-divider"></div>
-    <button id="reset-effects" class="tool-btn danger" title="Reset effets">💥</button>
-    <button id="clear-canvas" class="tool-btn danger" title="Effacer tout">🧹</button>
+    <button id="reset-effects" class="tool-btn danger" title="Reset effets (Ctrl+Shift+E)">FX</button>
+    <button id="clear-canvas" class="tool-btn danger" title="Effacer tout (Ctrl+Shift+R)">CLR</button>
     <div class="toolbar-divider"></div>
-    <button id="export" class="tool-btn" title="Exporter PNG">📷</button>
+    <button id="export" class="tool-btn" title="Exporter PNG (Ctrl+S)">PNG</button>
   </div>
+
+  <!-- RIGHT SIDEBAR - GAME CONTROL PANEL -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2>Game Control Panel</h2>
+      <div class="subtitle">Picturaevox 3.5 Admin</div>
+    </div>
+
+    <div class="sidebar-body" id="sidebar-body">
+
+      <!-- GAMES -->
+      <div class="panel-section">
+        <div class="panel-section-title">Jeux</div>
+
+        <!-- Cadavre Exquis -->
+        <div class="game-card" id="card-cadavre" data-game="cadavre">
+          <div class="game-card-header">
+            <span class="game-card-name">Cadavre Exquis</span>
+            <span class="game-card-status stopped" id="status-cadavre">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-cadavre" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="game-card-players" id="players-cadavre">0 joueurs</span>
+            <button class="btn-sm btn-accent" id="launch-cadavre">Lancer</button>
+            <button class="btn-sm btn-ghost" id="reset-cadavre">Reset</button>
+          </div>
+        </div>
+
+        <!-- Telephone Gribouillis -->
+        <div class="game-card" id="card-telephone" data-game="telephone">
+          <div class="game-card-header">
+            <span class="game-card-name">Telephone Gribouillis</span>
+            <span class="game-card-status stopped" id="status-telephone">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-telephone" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="game-card-players" id="players-telephone">0 joueurs</span>
+            <button class="btn-sm btn-accent" id="launch-telephone">Lancer</button>
+            <button class="btn-sm btn-ghost" id="reset-telephone">Reset</button>
+          </div>
+        </div>
+
+        <!-- Dessine-Devine -->
+        <div class="game-card" id="card-devine" data-game="devine">
+          <div class="game-card-header">
+            <span class="game-card-name">Dessine-Devine</span>
+            <span class="game-card-status stopped" id="status-devine">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-devine" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="game-card-players" id="players-devine">0 joueurs</span>
+            <button class="btn-sm btn-accent" id="launch-devine">Lancer</button>
+            <button class="btn-sm btn-ghost" id="reset-devine">Reset</button>
+          </div>
+        </div>
+
+        <!-- Le Grand Theme -->
+        <div class="game-card" id="card-theme" data-game="theme">
+          <div class="game-card-header">
+            <span class="game-card-name">Le Grand Theme</span>
+            <span class="game-card-status stopped" id="status-theme">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-theme" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="game-card-players" id="players-theme">0 joueurs</span>
+            <button class="btn-sm btn-accent" id="launch-theme">Lancer</button>
+            <button class="btn-sm btn-ghost" id="reset-theme">Reset</button>
+          </div>
+          <div class="theme-input-group" id="theme-input-group">
+            <input type="text" id="theme-custom-input" placeholder="Theme personnalise..." />
+            <select id="theme-preset-select">
+              <option value="">-- Presets --</option>
+              <option value="La mer">La mer</option>
+              <option value="L'espace">L'espace</option>
+              <option value="La foret enchantee">La foret enchantee</option>
+              <option value="Les monstres">Les monstres</option>
+              <option value="Le futur">Le futur</option>
+              <option value="Les emotions">Les emotions</option>
+              <option value="La musique">La musique</option>
+              <option value="Les reves">Les reves</option>
+              <option value="La ville">La ville</option>
+              <option value="Les animaux fantastiques">Les animaux fantastiques</option>
+              <option value="Le cirque">Le cirque</option>
+              <option value="La nourriture">La nourriture</option>
+              <option value="Les saisons">Les saisons</option>
+              <option value="Le sport">Le sport</option>
+              <option value="Les super-heros">Les super-heros</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- OUTPUT LAYOUT -->
+      <div class="panel-section">
+        <div class="panel-section-title">Output Layout</div>
+        <div class="layout-option">
+          <input type="checkbox" id="layout-canvas" checked />
+          <label for="layout-canvas">Canvas partage</label>
+        </div>
+        <div class="layout-option">
+          <input type="checkbox" id="layout-cadavre" />
+          <label for="layout-cadavre">Resultats Cadavre Exquis</label>
+        </div>
+        <div class="layout-option">
+          <input type="checkbox" id="layout-telephone" />
+          <label for="layout-telephone">Resultats Telephone</label>
+        </div>
+        <div class="layout-option">
+          <input type="checkbox" id="layout-devine" />
+          <label for="layout-devine">Dessine-Devine live</label>
+        </div>
+        <div class="layout-option">
+          <input type="checkbox" id="layout-theme" />
+          <label for="layout-theme">Le Grand Theme</label>
+        </div>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="panel-section">
+        <div class="panel-section-title">Actions</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn-sm btn-accent" id="open-output" title="Ouvrir la projection">Ouvrir Output</button>
+          <button class="btn-sm btn-ghost" id="send-layout">Envoyer Layout</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIDEBAR FOOTER -->
+    <div class="sidebar-footer">
+      <button class="btn-sm btn-danger" id="reset-all" style="width: 100%;">RESET COMPLET</button>
+    </div>
+  </div>
+
+  <!-- SIDEBAR TOGGLE -->
+  <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle panel">&lsaquo;</button>
 
   <!-- MINIMAP -->
   <canvas id="minimap" width="160" height="120"></canvas>

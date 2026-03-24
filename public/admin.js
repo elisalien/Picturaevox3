@@ -1,14 +1,16 @@
-// public/admin.js V5.0 - STABLE - Turquoise - View Only
+// public/admin.js V6.0 - Picturaevox 3.5 - Admin Control Panel with Game Management
+// =================================================================================
+
 const socket = io({
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,
   timeout: 10000,
   transports: ['websocket', 'polling']
 });
 
-// Canvas standard
+// === KONVA CANVAS SETUP ===
 const stage = new Konva.Stage({
   container: 'canvas-container',
   width: window.innerWidth,
@@ -18,8 +20,35 @@ const stage = new Konva.Stage({
 
 const layer = new Konva.Layer();
 stage.add(layer);
-
 window.stage = stage;
+
+// === CONNECTION MANAGER ===
+const connectionManager = new ConnectionManager(socket);
+
+// === BRUSH MANAGER ===
+const brushManager = new BrushManager(layer, socket);
+
+// === STATE ===
+let currentZoom = 0.5;
+let currentTool = 'view'; // 'view' or 'eraser'
+let isUIVisible = true;
+
+const adminState = {
+  games: {
+    cadavre:   { enabled: false, status: 'stopped', players: 0 },
+    telephone: { enabled: false, status: 'stopped', players: 0 },
+    devine:    { enabled: false, status: 'stopped', players: 0 },
+    theme:     { enabled: false, status: 'stopped', players: 0 }
+  },
+  outputLayout: {
+    canvas: true,
+    cadavre: false,
+    telephone: false,
+    devine: false,
+    theme: false
+  },
+  connectedPlayers: 0
+};
 
 // === RESIZE ===
 window.addEventListener('resize', () => {
@@ -29,19 +58,11 @@ window.addEventListener('resize', () => {
   updateMinimap();
 });
 
-// Initialiser ConnectionManager
-const connectionManager = new ConnectionManager(socket);
-
-// ✅ Initialiser le BrushManager
-const brushManager = new BrushManager(layer, socket);
-
-let currentZoom = 0.5;
-let currentTool = 'view';
-
-// === 🗺️ MINIMAP ===
+// =============================================
+// MINIMAP
+// =============================================
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
-
 const CANVAS_VIRTUAL_SIZE = 8000;
 
 function updateMinimap() {
@@ -49,18 +70,17 @@ function updateMinimap() {
 
   const w = minimapCanvas.width;
   const h = minimapCanvas.height;
-
   if (w <= 0 || h <= 0) return;
-  
+
   const scaleX = w / CANVAS_VIRTUAL_SIZE;
   const scaleY = h / CANVAS_VIRTUAL_SIZE;
-  
-  // Fond sombre
-  minimapCtx.fillStyle = '#0a0a0a';
+
+  // Dark background
+  minimapCtx.fillStyle = '#080810';
   minimapCtx.fillRect(0, 0, w, h);
-  
-  // Grille subtile
-  minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+
+  // Subtle grid
+  minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
   minimapCtx.lineWidth = 1;
   const gridSize = 1000;
   for (let x = 0; x < CANVAS_VIRTUAL_SIZE; x += gridSize) {
@@ -75,15 +95,12 @@ function updateMinimap() {
     minimapCtx.lineTo(w, y * scaleY);
     minimapCtx.stroke();
   }
-  
-  // Dessins (tous les tracés)
-  minimapCtx.fillStyle = 'rgba(107, 91, 255, 0.7)';
+
+  // Draw shape positions
+  minimapCtx.fillStyle = 'rgba(0, 217, 255, 0.6)';
   const children = layer.getChildren();
-  
   for (let i = 0; i < children.length; i++) {
     const shape = children[i];
-    
-    // Lignes classiques
     if (shape.getClassName() === 'Line' && typeof shape.points === 'function') {
       const points = shape.points();
       if (points && points.length >= 2) {
@@ -92,37 +109,36 @@ function updateMinimap() {
         minimapCtx.fillRect(x - 1, y - 1, 3, 3);
       }
     }
-    
-    // Cercles (texture, effets)
     if (shape.getClassName() === 'Circle') {
       const x = (shape.x() + CANVAS_VIRTUAL_SIZE / 2) * scaleX;
       const y = (shape.y() + CANVAS_VIRTUAL_SIZE / 2) * scaleY;
       minimapCtx.fillRect(x - 1, y - 1, 2, 2);
     }
   }
-  
-  // Viewport actuel (zone visible)
+
+  // Viewport rectangle
   const viewX = (-stage.x() / stage.scaleX() + CANVAS_VIRTUAL_SIZE / 2) * scaleX;
   const viewY = (-stage.y() / stage.scaleY() + CANVAS_VIRTUAL_SIZE / 2) * scaleY;
   const viewW = (stage.width() / stage.scaleX()) * scaleX;
   const viewH = (stage.height() / stage.scaleY()) * scaleY;
-  
-  minimapCtx.strokeStyle = 'rgba(0, 217, 255, 0.9)';
+
+  minimapCtx.strokeStyle = 'rgba(0, 217, 255, 0.85)';
   minimapCtx.lineWidth = 2;
   minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
-  
-  // Indicateur centre (origine)
+
+  // Center origin marker
   const centerX = (CANVAS_VIRTUAL_SIZE / 2) * scaleX;
   const centerY = (CANVAS_VIRTUAL_SIZE / 2) * scaleY;
-  minimapCtx.fillStyle = 'rgba(0, 217, 255, 0.5)';
+  minimapCtx.fillStyle = 'rgba(0, 217, 255, 0.4)';
   minimapCtx.fillRect(centerX - 2, centerY - 2, 4, 4);
 }
 
-// Update minimap régulièrement + au chargement
 setInterval(updateMinimap, 500);
-setTimeout(updateMinimap, 100); // Initial update
+setTimeout(updateMinimap, 100);
 
-// === 🎨 GESTION CANVAS ===
+// =============================================
+// CANVAS INTERACTION
+// =============================================
 
 stage.on('mousedown touchstart pointerdown', () => {
   if (currentTool === 'view') {
@@ -138,30 +154,71 @@ stage.on('mouseup touchend pointerup', () => {
 
 stage.on('dragend', updateMinimap);
 
-// === 🌐 SOCKET LISTENERS ===
+// Wheel zoom
+stage.on('wheel', (e) => {
+  e.evt.preventDefault();
+  const scaleBy = 1.1;
+  const pointer = stage.getPointerPosition();
+  const mousePointTo = {
+    x: (pointer.x - stage.x()) / stage.scaleX(),
+    y: (pointer.y - stage.y()) / stage.scaleY(),
+  };
 
-socket.on('initShapes', shapes => {
-  console.log(`📥 ADMIN: Loading ${shapes.length} shapes...`);
-  
-  shapes.forEach(data => {
+  let direction = e.evt.deltaY > 0 ? -1 : 1;
+  let newScale = stage.scaleX() * (scaleBy ** direction);
+  newScale = Math.max(0.05, Math.min(8, newScale));
+
+  stage.scale({ x: newScale, y: newScale });
+  const newPos = {
+    x: pointer.x - mousePointTo.x * newScale,
+    y: pointer.y - mousePointTo.y * newScale,
+  };
+  stage.position(newPos);
+  stage.batchDraw();
+  currentZoom = newScale;
+  updateMinimap();
+});
+
+// Click to delete in eraser mode
+stage.on('click', (evt) => {
+  if (currentTool !== 'eraser') return;
+  const target = evt.target;
+  if (target !== stage && target.id && target.id()) {
+    const id = target.id();
+    // Flash red then destroy
+    target.stroke('#ff0000');
+    target.opacity(0.5);
+    layer.draw();
+    setTimeout(() => {
+      target.destroy();
+      layer.draw();
+      updateMinimap();
+      connectionManager.emit('deleteShape', { id });
+      showAdminNotification('Element supprime');
+    }, 120);
+  }
+});
+
+// =============================================
+// SOCKET: CANVAS EVENTS
+// =============================================
+
+socket.on('connect', () => {
+  socket.emit('admin:join');
+  console.log('[Admin] Connected, emitted admin:join');
+});
+
+socket.on('initShapes', (shapes) => {
+  console.log(`[Admin] Loading ${shapes.length} shapes...`);
+  shapes.forEach((data) => {
     if (data.type === 'permanentTrace') {
       let element;
-      
-      switch(data.shapeType) {
-        case 'Star':
-          element = new Konva.Star(data.attrs);
-          break;
-        case 'Circle':
-          element = new Konva.Circle(data.attrs);
-          break;
-        case 'Line':
-          element = new Konva.Line(data.attrs);
-          break;
-        case 'Ellipse':
-          element = new Konva.Ellipse(data.attrs);
-          break;
+      switch (data.shapeType) {
+        case 'Star':    element = new Konva.Star(data.attrs); break;
+        case 'Circle':  element = new Konva.Circle(data.attrs); break;
+        case 'Line':    element = new Konva.Line(data.attrs); break;
+        case 'Ellipse': element = new Konva.Ellipse(data.attrs); break;
       }
-      
       if (element) {
         element.id(data.id);
         element.isPermanentTrace = true;
@@ -180,14 +237,12 @@ socket.on('initShapes', shapes => {
       layer.add(line);
     }
   });
-  
   layer.draw();
   updateMinimap();
-  
-  console.log(`✅ ADMIN: ${shapes.length} shapes loaded`);
+  console.log(`[Admin] ${shapes.length} shapes loaded`);
 });
 
-socket.on('drawing', data => {
+socket.on('drawing', (data) => {
   let shape = layer.findOne('#' + data.id);
   if (shape) {
     shape.points(data.points);
@@ -207,6 +262,29 @@ socket.on('drawing', data => {
   layer.batchDraw();
 });
 
+socket.on('draw', (data) => {
+  let shape = layer.findOne('#' + data.id);
+  if (shape) {
+    shape.points(data.points);
+    shape.stroke(data.stroke);
+    shape.strokeWidth(data.strokeWidth);
+    shape.globalCompositeOperation(data.globalCompositeOperation);
+  } else {
+    const line = new Konva.Line({
+      id: data.id,
+      points: data.points,
+      stroke: data.stroke,
+      strokeWidth: data.strokeWidth,
+      globalCompositeOperation: data.globalCompositeOperation,
+      lineCap: 'round',
+      lineJoin: 'round'
+    });
+    layer.add(line);
+  }
+  layer.draw();
+  updateMinimap();
+});
+
 socket.on('brushEffect', (data) => {
   brushManager.createNetworkEffect(data);
 });
@@ -215,7 +293,7 @@ socket.on('cleanupUserEffects', (data) => {
   brushManager.cleanupUserEffects(data.socketId);
 });
 
-socket.on('texture', data => {
+socket.on('texture', (data) => {
   const particleCount = 8;
   for (let i = 0; i < particleCount; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -229,7 +307,11 @@ socket.on('texture', data => {
       const lineLength = 1 + Math.random() * 2.5;
       const lineAngle = Math.random() * Math.PI * 2;
       const line = new Konva.Line({
-        points: [data.x + offsetX, data.y + offsetY, data.x + offsetX + Math.cos(lineAngle) * lineLength, data.y + offsetY + Math.sin(lineAngle) * lineLength],
+        points: [
+          data.x + offsetX, data.y + offsetY,
+          data.x + offsetX + Math.cos(lineAngle) * lineLength,
+          data.y + offsetY + Math.sin(lineAngle) * lineLength
+        ],
         stroke: data.color,
         strokeWidth: dotSize * 0.8,
         opacity: alpha,
@@ -255,29 +337,6 @@ socket.on('texture', data => {
   layer.batchDraw();
 });
 
-socket.on('draw', data => {
-  let shape = layer.findOne('#' + data.id);
-  if (shape) {
-    shape.points(data.points);
-    shape.stroke(data.stroke);
-    shape.strokeWidth(data.strokeWidth);
-    shape.globalCompositeOperation(data.globalCompositeOperation);
-  } else {
-    const line = new Konva.Line({
-      id: data.id,
-      points: data.points,
-      stroke: data.stroke,
-      strokeWidth: data.strokeWidth,
-      globalCompositeOperation: data.globalCompositeOperation,
-      lineCap: 'round',
-      lineJoin: 'round'
-    });
-    layer.add(line);
-  }
-  layer.draw();
-  updateMinimap();
-});
-
 socket.on('deleteShape', ({ id }) => {
   const shape = layer.findOne('#' + id);
   if (shape) {
@@ -292,31 +351,21 @@ socket.on('clearCanvas', () => {
   brushManager.clearEverything();
   layer.draw();
   updateMinimap();
+  console.log('[Admin] Canvas cleared by server');
 });
 
 socket.on('restoreShapes', (shapes) => {
   layer.destroyChildren();
   brushManager.clearEverything();
-  
-  shapes.forEach(data => {
+  shapes.forEach((data) => {
     if (data.type === 'permanentTrace') {
       let element;
-      
-      switch(data.shapeType) {
-        case 'Star':
-          element = new Konva.Star(data.attrs);
-          break;
-        case 'Circle':
-          element = new Konva.Circle(data.attrs);
-          break;
-        case 'Line':
-          element = new Konva.Line(data.attrs);
-          break;
-        case 'Ellipse':
-          element = new Konva.Ellipse(data.attrs);
-          break;
+      switch (data.shapeType) {
+        case 'Star':    element = new Konva.Star(data.attrs); break;
+        case 'Circle':  element = new Konva.Circle(data.attrs); break;
+        case 'Line':    element = new Konva.Line(data.attrs); break;
+        case 'Ellipse': element = new Konva.Ellipse(data.attrs); break;
       }
-      
       if (element) {
         element.id(data.id);
         element.isPermanentTrace = true;
@@ -344,274 +393,593 @@ socket.on('adminResetBrushEffects', () => {
   layer.batchDraw();
 });
 
-// === 💬 NOTIFICATIONS ===
+// =============================================
+// SOCKET: ADMIN STATE EVENTS
+// =============================================
+
+socket.on('admin:state', (state) => {
+  console.log('[Admin] Received admin:state', state);
+  if (state.games) {
+    Object.keys(state.games).forEach((game) => {
+      if (adminState.games[game]) {
+        Object.assign(adminState.games[game], state.games[game]);
+      }
+    });
+  }
+  if (state.outputLayout) {
+    Object.assign(adminState.outputLayout, state.outputLayout);
+  }
+  if (typeof state.connectedPlayers === 'number') {
+    adminState.connectedPlayers = state.connectedPlayers;
+  }
+  refreshAllUI();
+});
+
+socket.on('admin:gamesUpdate', (gamesData) => {
+  console.log('[Admin] Received admin:gamesUpdate', gamesData);
+  if (gamesData) {
+    Object.keys(gamesData).forEach((game) => {
+      if (adminState.games[game]) {
+        Object.assign(adminState.games[game], gamesData[game]);
+      }
+    });
+  }
+  refreshGameCards();
+});
+
+// Listen for Cadavre Exquis specific events
+socket.on('game:playerList', (playerList) => {
+  adminState.games.cadavre.players = playerList.length;
+  updateGameCardUI('cadavre');
+});
+
+socket.on('game:status', (status) => {
+  adminState.games.cadavre.status = status;
+  updateGameCardUI('cadavre');
+});
+
+socket.on('game:started', (data) => {
+  adminState.games.cadavre.status = 'playing';
+  updateGameCardUI('cadavre');
+  showAdminNotification('Cadavre Exquis demarre !');
+});
+
+socket.on('game:revealing', (results) => {
+  adminState.games.cadavre.status = 'revealing';
+  updateGameCardUI('cadavre');
+  showAdminNotification('Cadavre Exquis - Revelation !');
+});
+
+socket.on('game:reset', () => {
+  adminState.games.cadavre.status = 'waiting';
+  updateGameCardUI('cadavre');
+});
+
+socket.on('game:timer', (value) => {
+  // Could display timer in admin if desired
+});
+
+// Generic game events for other games
+socket.on('telephone:update', (data) => {
+  if (data.status) adminState.games.telephone.status = data.status;
+  if (typeof data.players === 'number') adminState.games.telephone.players = data.players;
+  updateGameCardUI('telephone');
+});
+
+socket.on('devine:update', (data) => {
+  if (data.status) adminState.games.devine.status = data.status;
+  if (typeof data.players === 'number') adminState.games.devine.players = data.players;
+  updateGameCardUI('devine');
+});
+
+socket.on('theme:update', (data) => {
+  if (data.status) adminState.games.theme.status = data.status;
+  if (typeof data.players === 'number') adminState.games.theme.players = data.players;
+  updateGameCardUI('theme');
+});
+
+// =============================================
+// UI UPDATE FUNCTIONS
+// =============================================
+
+function refreshAllUI() {
+  refreshGameCards();
+  refreshOutputLayout();
+  updatePlayerCount();
+}
+
+function refreshGameCards() {
+  ['cadavre', 'telephone', 'devine', 'theme'].forEach(updateGameCardUI);
+}
+
+function updateGameCardUI(game) {
+  const state = adminState.games[game];
+  if (!state) return;
+
+  const card = document.getElementById('card-' + game);
+  const statusEl = document.getElementById('status-' + game);
+  const playersEl = document.getElementById('players-' + game);
+  const toggleEl = document.getElementById('toggle-' + game);
+  const launchBtn = document.getElementById('launch-' + game);
+
+  if (card) {
+    card.classList.toggle('enabled', state.enabled);
+  }
+
+  if (statusEl) {
+    statusEl.className = 'game-card-status';
+    if (!state.enabled) {
+      statusEl.classList.add('stopped');
+      statusEl.textContent = 'OFF';
+    } else if (state.status === 'playing') {
+      statusEl.classList.add('playing');
+      statusEl.textContent = 'EN JEU';
+    } else if (state.status === 'revealing') {
+      statusEl.classList.add('revealing');
+      statusEl.textContent = 'REVEAL';
+    } else if (state.status === 'waiting') {
+      statusEl.classList.add('waiting');
+      statusEl.textContent = 'LOBBY';
+    } else {
+      statusEl.classList.add('stopped');
+      statusEl.textContent = state.enabled ? 'PRET' : 'OFF';
+    }
+  }
+
+  if (playersEl) {
+    playersEl.textContent = state.players + ' joueur' + (state.players !== 1 ? 's' : '');
+  }
+
+  if (toggleEl) {
+    toggleEl.checked = state.enabled;
+  }
+
+  if (launchBtn) {
+    launchBtn.disabled = !state.enabled || state.status === 'playing';
+  }
+}
+
+function refreshOutputLayout() {
+  const layout = adminState.outputLayout;
+  document.getElementById('layout-canvas').checked = layout.canvas;
+  document.getElementById('layout-cadavre').checked = layout.cadavre;
+  document.getElementById('layout-telephone').checked = layout.telephone;
+  document.getElementById('layout-devine').checked = layout.devine;
+  document.getElementById('layout-theme').checked = layout.theme;
+}
+
+function updatePlayerCount() {
+  const el = document.getElementById('player-count');
+  if (el) {
+    el.textContent = adminState.connectedPlayers;
+  }
+}
+
+// =============================================
+// NOTIFICATIONS
+// =============================================
+
 function showAdminNotification(message) {
   const notification = document.createElement('div');
   notification.className = 'admin-notification';
-  notification.textContent = `👑 ${message}`;
+  notification.textContent = message;
   document.body.appendChild(notification);
-  
   setTimeout(() => {
     if (notification.parentNode) {
       notification.parentNode.removeChild(notification);
     }
-  }, 2000);
+  }, 1400);
 }
 
-// === 🎛️ INTERFACE ADMIN ===
+// =============================================
+// TOOLBAR BUTTONS
+// =============================================
 
+const panBtn = document.getElementById('pan');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const resetZoomBtn = document.getElementById('reset-zoom');
 const deleteModeBtn = document.getElementById('delete-mode');
+const undoBtn = document.getElementById('undo');
 const resetEffectsBtn = document.getElementById('reset-effects');
 const clearBtn = document.getElementById('clear-canvas');
-const undoBtn = document.getElementById('undo');
 const exportBtn = document.getElementById('export');
-const panBtn = document.getElementById('pan');
 const hideUiBtn = document.getElementById('hide-ui');
 
-// === 🎯 PAN MODE ===
-panBtn?.addEventListener('click', () => {
+// Pan mode
+panBtn.addEventListener('click', () => {
   currentTool = 'view';
-  deleteModeBtn?.classList.remove('active');
-  panBtn?.classList.add('active');
+  deleteModeBtn.classList.remove('active');
+  panBtn.classList.add('active');
   stage.container().style.cursor = 'grab';
+  stage.draggable(true);
   showAdminNotification('Mode navigation');
 });
 
-// === 🔍 ZOOM ===
+// Zoom
 function setZoomAdmin(newZoom) {
-  newZoom = Math.max(0.1, Math.min(5, newZoom));
-  
+  newZoom = Math.max(0.05, Math.min(8, newZoom));
   const center = {
     x: stage.width() / 2,
     y: stage.height() / 2
   };
-  
   const oldScale = stage.scaleX();
   const mousePointTo = {
     x: (center.x - stage.x()) / oldScale,
     y: (center.y - stage.y()) / oldScale
   };
-  
   stage.scale({ x: newZoom, y: newZoom });
-  
   const newPos = {
     x: center.x - mousePointTo.x * newZoom,
     y: center.y - mousePointTo.y * newZoom
   };
   stage.position(newPos);
   stage.batchDraw();
-  
   currentZoom = newZoom;
   updateMinimap();
 }
 
-zoomInBtn?.addEventListener('click', () => {
+zoomInBtn.addEventListener('click', () => {
   setZoomAdmin(currentZoom * 1.3);
-  showAdminNotification(`Zoom: ${Math.round(currentZoom * 100)}%`);
+  showAdminNotification('Zoom: ' + Math.round(currentZoom * 100) + '%');
 });
 
-zoomOutBtn?.addEventListener('click', () => {
+zoomOutBtn.addEventListener('click', () => {
   setZoomAdmin(currentZoom / 1.3);
-  showAdminNotification(`Zoom: ${Math.round(currentZoom * 100)}%`);
+  showAdminNotification('Zoom: ' + Math.round(currentZoom * 100) + '%');
 });
 
-resetZoomBtn?.addEventListener('click', () => {
+resetZoomBtn.addEventListener('click', () => {
   stage.scale({ x: 1, y: 1 });
+  stage.position({ x: 0, y: 0 });
   stage.batchDraw();
   currentZoom = 1;
   updateMinimap();
   showAdminNotification('Zoom 100%');
 });
 
-// === 🗑️ DELETE MODE ===
-deleteModeBtn?.addEventListener('click', () => {
-  currentTool = currentTool === 'eraser' ? 'view' : 'eraser';
-  deleteModeBtn.classList.toggle('active');
-  panBtn?.classList.toggle('active');
-  stage.container().style.cursor = currentTool === 'eraser' ? 'crosshair' : 'grab';
-  showAdminNotification(currentTool === 'eraser' ? 'Mode suppression' : 'Mode navigation');
-});
-
-stage.on('click', evt => {
+// Delete mode
+deleteModeBtn.addEventListener('click', () => {
   if (currentTool === 'eraser') {
-    const target = evt.target;
-    
-    if (target !== stage && target.id && target.id()) {
-      const id = target.id();
-      
-      target.stroke('#ff0000');
-      target.opacity(0.5);
-      layer.draw();
-      
-      setTimeout(() => {
-        target.destroy();
-        layer.draw();
-        updateMinimap();
-        connectionManager.emit('deleteShape', { id });
-        showAdminNotification('Supprimé 🧽');
-      }, 150);
-    }
+    currentTool = 'view';
+    deleteModeBtn.classList.remove('active');
+    panBtn.classList.add('active');
+    stage.container().style.cursor = 'grab';
+    stage.draggable(true);
+    showAdminNotification('Mode navigation');
+  } else {
+    currentTool = 'eraser';
+    deleteModeBtn.classList.add('active');
+    panBtn.classList.remove('active');
+    stage.container().style.cursor = 'crosshair';
+    stage.draggable(false);
+    showAdminNotification('Mode suppression');
   }
 });
 
-// === ✨ RESET EFFETS ===
-resetEffectsBtn?.addEventListener('click', () => {
+// Undo
+undoBtn.addEventListener('click', () => {
+  connectionManager.emit('undo');
+  showAdminNotification('Undo global');
+});
+
+// Reset effects
+resetEffectsBtn.addEventListener('click', () => {
   brushManager.clearAllEffects();
   layer.batchDraw();
   connectionManager.emit('adminResetBrushEffects');
-  showAdminNotification('Effets réinitialisés ✨');
+  showAdminNotification('Effets reinitialises');
 });
 
-// === 🧼 CLEAR ===
-clearBtn?.addEventListener('click', () => {
-  if (confirm('⚠️ Effacer TOUT pour TOUS ?')) {
+// Clear canvas
+clearBtn.addEventListener('click', () => {
+  if (confirm('Effacer TOUT le canvas pour TOUS les participants ?')) {
     layer.destroyChildren();
     brushManager.clearEverything();
     layer.draw();
     updateMinimap();
-    
     connectionManager.emit('clearCanvas');
     connectionManager.emit('adminResetBrushEffects');
-    
-    showAdminNotification('Canvas nettoyé 🧼');
+    showAdminNotification('Canvas nettoye');
   }
 });
 
-// === ↶ UNDO ===
-undoBtn?.addEventListener('click', () => {
-  connectionManager.emit('undo');
-  showAdminNotification('Undo global ↶');
-});
-
-// === 📷 EXPORT ===
-exportBtn?.addEventListener('click', () => {
+// Export PNG
+exportBtn.addEventListener('click', () => {
   const uri = stage.toDataURL({ pixelRatio: 2 });
   const link = document.createElement('a');
-  link.download = `picturavox-admin-${Date.now()}.png`;
+  link.download = 'picturaevox-admin-' + Date.now() + '.png';
   link.href = uri;
   link.click();
-  showAdminNotification('Exporté 📷');
+  showAdminNotification('PNG exporte');
 });
 
-// === 🖱️ ZOOM MOLETTE ===
-stage.on('wheel', (e) => {
-  e.evt.preventDefault();
-  
-  const scaleBy = 1.1;
-  const pointer = stage.getPointerPosition();
-  const mousePointTo = {
-    x: (pointer.x - stage.x()) / stage.scaleX(),
-    y: (pointer.y - stage.y()) / stage.scaleY(),
-  };
+// =============================================
+// SIDEBAR - GAME CONTROLS
+// =============================================
 
-  let direction = e.evt.deltaY > 0 ? -1 : 1;
-  let newScale = stage.scaleX() * (scaleBy ** direction);
-  
-  newScale = Math.max(0.1, Math.min(5, newScale));
-  
-  stage.scale({ x: newScale, y: newScale });
-  
-  const newPos = {
-    x: pointer.x - mousePointTo.x * newScale,
-    y: pointer.y - mousePointTo.y * newScale,
-  };
-  stage.position(newPos);
-  stage.batchDraw();
-  
-  currentZoom = newScale;
-  updateMinimap();
+// Toggle sidebar
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('collapsed');
+  sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '\u203A' : '\u2039';
 });
 
-// === 👁️ TOGGLE UI ===
-let isUIVisible = true;
-
-function toggleUI() {
-  isUIVisible = !isUIVisible;
-
-  const elementsToToggle = [
-    document.querySelector('.admin-toolbar'),
-    document.querySelector('.admin-badge'),
-    document.querySelector('.status-bar'),
-    document.getElementById('minimap')
-  ];
-
-  elementsToToggle.forEach(el => {
-    if (el) {
-      el.style.display = isUIVisible ? '' : 'none';
-    }
-  });
-
-  if (hideUiBtn) {
-    hideUiBtn.textContent = isUIVisible ? '👁' : '👁‍🗨';
+// Game enable/disable toggles
+['cadavre', 'telephone', 'devine', 'theme'].forEach((game) => {
+  const toggle = document.getElementById('toggle-' + game);
+  if (toggle) {
+    toggle.addEventListener('change', () => {
+      adminState.games[game].enabled = toggle.checked;
+      connectionManager.emit('admin:enableGame', { game, enabled: toggle.checked });
+      updateGameCardUI(game);
+      showAdminNotification(
+        (toggle.checked ? 'Active' : 'Desactive') + ': ' +
+        document.querySelector('#card-' + game + ' .game-card-name').textContent
+      );
+    });
   }
+});
 
-  showAdminNotification(isUIVisible ? 'UI visible' : 'UI cachée');
-}
+// Launch buttons
+document.getElementById('launch-cadavre').addEventListener('click', () => {
+  connectionManager.emit('game:start');
+  showAdminNotification('Lancement Cadavre Exquis');
+});
 
-hideUiBtn?.addEventListener('click', toggleUI);
+document.getElementById('launch-telephone').addEventListener('click', () => {
+  connectionManager.emit('telephone:start');
+  showAdminNotification('Lancement Telephone Gribouillis');
+});
 
-// === ⌨️ RACCOURCIS CLAVIER ===
-document.addEventListener('keydown', (e) => {
-  // H pour toggle UI
-  if (e.key === 'h' || e.key === 'H') {
-    if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
-      e.preventDefault();
-      toggleUI();
-    }
+document.getElementById('launch-devine').addEventListener('click', () => {
+  connectionManager.emit('devine:start');
+  showAdminNotification('Lancement Dessine-Devine');
+});
+
+document.getElementById('launch-theme').addEventListener('click', () => {
+  const customTheme = document.getElementById('theme-custom-input').value.trim();
+  const presetTheme = document.getElementById('theme-preset-select').value;
+  const theme = customTheme || presetTheme || 'Theme libre';
+  connectionManager.emit('theme:start', { theme });
+  showAdminNotification('Lancement Grand Theme: ' + theme);
+});
+
+// Theme preset select fills the custom input
+document.getElementById('theme-preset-select').addEventListener('change', (e) => {
+  if (e.target.value) {
+    document.getElementById('theme-custom-input').value = e.target.value;
   }
-  
-  // Ctrl+Z pour undo
-  if (e.ctrlKey && e.key === 'z') {
-    e.preventDefault();
-    connectionManager.emit('undo');
-    showAdminNotification('Undo global ↶');
+});
+
+// Reset buttons
+document.getElementById('reset-cadavre').addEventListener('click', () => {
+  connectionManager.emit('game:reset');
+  adminState.games.cadavre.status = 'waiting';
+  updateGameCardUI('cadavre');
+  showAdminNotification('Cadavre Exquis reset');
+});
+
+document.getElementById('reset-telephone').addEventListener('click', () => {
+  connectionManager.emit('telephone:reset');
+  adminState.games.telephone.status = 'stopped';
+  updateGameCardUI('telephone');
+  showAdminNotification('Telephone reset');
+});
+
+document.getElementById('reset-devine').addEventListener('click', () => {
+  connectionManager.emit('devine:reset');
+  adminState.games.devine.status = 'stopped';
+  updateGameCardUI('devine');
+  showAdminNotification('Dessine-Devine reset');
+});
+
+document.getElementById('reset-theme').addEventListener('click', () => {
+  connectionManager.emit('theme:reset');
+  adminState.games.theme.status = 'stopped';
+  updateGameCardUI('theme');
+  showAdminNotification('Grand Theme reset');
+});
+
+// Output layout checkboxes
+['canvas', 'cadavre', 'telephone', 'devine', 'theme'].forEach((key) => {
+  const checkbox = document.getElementById('layout-' + key);
+  if (checkbox) {
+    checkbox.addEventListener('change', () => {
+      adminState.outputLayout[key] = checkbox.checked;
+    });
   }
-  
-  // Ctrl+Shift+E pour reset effets
-  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
-    e.preventDefault();
-    brushManager.clearAllEffects();
-    layer.batchDraw();
-    connectionManager.emit('adminResetBrushEffects');
-    showAdminNotification('Effets réinitialisés ✨');
-  }
-  
-  // Ctrl+Shift+R pour clear canvas
-  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-    e.preventDefault();
-    if (confirm('⚠️ Reset COMPLET ?')) {
+});
+
+// Send layout button
+document.getElementById('send-layout').addEventListener('click', () => {
+  connectionManager.emit('admin:outputLayout', { layout: adminState.outputLayout });
+  showAdminNotification('Layout envoye a Output');
+});
+
+// Open output
+document.getElementById('open-output').addEventListener('click', () => {
+  window.open('/output', '_blank');
+});
+
+// Reset all
+document.getElementById('reset-all').addEventListener('click', () => {
+  if (confirm('ATTENTION: Cela va reinitialiser TOUT (canvas + tous les jeux + galeries). Continuer ?')) {
+    if (confirm('Confirmer le RESET COMPLET ?')) {
+      // Clear canvas
       layer.destroyChildren();
       brushManager.clearEverything();
       layer.draw();
       updateMinimap();
       connectionManager.emit('clearCanvas');
       connectionManager.emit('adminResetBrushEffects');
-      showAdminNotification('Reset complet 🧼✨');
+
+      // Reset all games
+      connectionManager.emit('game:reset');
+      connectionManager.emit('game:clearGallery');
+      connectionManager.emit('telephone:reset');
+      connectionManager.emit('devine:reset');
+      connectionManager.emit('theme:reset');
+      connectionManager.emit('admin:resetAll');
+
+      // Reset local state
+      Object.keys(adminState.games).forEach((game) => {
+        adminState.games[game].status = 'stopped';
+        adminState.games[game].players = 0;
+      });
+      refreshGameCards();
+
+      showAdminNotification('RESET COMPLET effectue');
     }
   }
-  
-  // Escape to disable delete mode
-  if (e.key === 'Escape' && currentTool === 'eraser') {
-    currentTool = 'view';
-    deleteModeBtn?.classList.remove('active');
-    panBtn?.classList.add('active');
-    stage.container().style.cursor = 'grab';
-    showAdminNotification('Mode navigation');
+});
+
+// =============================================
+// TOGGLE UI (H key)
+// =============================================
+
+function toggleUI() {
+  isUIVisible = !isUIVisible;
+  const elements = [
+    document.getElementById('admin-toolbar'),
+    document.getElementById('admin-badge'),
+    document.getElementById('status-bar'),
+    document.getElementById('minimap'),
+    document.getElementById('sidebar'),
+    document.querySelector('.sidebar-toggle')
+  ];
+  elements.forEach((el) => {
+    if (el) {
+      el.style.display = isUIVisible ? '' : 'none';
+    }
+  });
+  if (hideUiBtn) {
+    hideUiBtn.style.opacity = isUIVisible ? '1' : '0.3';
+  }
+  showAdminNotification(isUIVisible ? 'UI visible' : 'UI masquee');
+}
+
+hideUiBtn.addEventListener('click', toggleUI);
+
+// =============================================
+// KEYBOARD SHORTCUTS
+// =============================================
+
+document.addEventListener('keydown', (e) => {
+  // Ignore shortcuts when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+    return;
+  }
+
+  // H - Toggle UI
+  if (e.key === 'h' || e.key === 'H') {
+    if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      toggleUI();
+    }
+  }
+
+  // V - Pan mode
+  if (e.key === 'v' || e.key === 'V') {
+    if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      panBtn.click();
+    }
+  }
+
+  // D - Delete mode
+  if (e.key === 'd' || e.key === 'D') {
+    if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      deleteModeBtn.click();
+    }
+  }
+
+  // + - Zoom in
+  if (e.key === '+' || e.key === '=') {
+    if (!e.ctrlKey) {
+      e.preventDefault();
+      zoomInBtn.click();
+    }
+  }
+
+  // - - Zoom out
+  if (e.key === '-') {
+    if (!e.ctrlKey) {
+      e.preventDefault();
+      zoomOutBtn.click();
+    }
+  }
+
+  // 0 - Reset zoom
+  if (e.key === '0') {
+    if (!e.ctrlKey) {
+      e.preventDefault();
+      resetZoomBtn.click();
+    }
+  }
+
+  // Ctrl+Z - Undo
+  if (e.ctrlKey && e.key === 'z') {
+    e.preventDefault();
+    connectionManager.emit('undo');
+    showAdminNotification('Undo global');
+  }
+
+  // Ctrl+S - Export
+  if (e.ctrlKey && e.key === 's') {
+    e.preventDefault();
+    exportBtn.click();
+  }
+
+  // Ctrl+Shift+E - Reset effects
+  if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+    e.preventDefault();
+    resetEffectsBtn.click();
+  }
+
+  // Ctrl+Shift+R - Clear canvas
+  if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+    e.preventDefault();
+    clearBtn.click();
+  }
+
+  // Escape - Exit delete mode
+  if (e.key === 'Escape') {
+    if (currentTool === 'eraser') {
+      currentTool = 'view';
+      deleteModeBtn.classList.remove('active');
+      panBtn.classList.add('active');
+      stage.container().style.cursor = 'grab';
+      stage.draggable(true);
+      showAdminNotification('Mode navigation');
+    }
+  }
+
+  // Tab - Toggle sidebar
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    sidebarToggle.click();
   }
 });
 
-// === 🎬 INITIALISATION ===
+// =============================================
+// INITIALIZATION
+// =============================================
+
 stage.container().style.cursor = 'grab';
 stage.scale({ x: 0.5, y: 0.5 });
-stage.position({ 
-  x: window.innerWidth / 4, 
-  y: window.innerHeight / 4 
+stage.position({
+  x: window.innerWidth / 4,
+  y: window.innerHeight / 4
 });
 updateMinimap();
+refreshAllUI();
 
-console.log('✅ Admin.js V5.0 - Turquoise - Stable');
-console.log('👑 Raccourcis: H=Toggle UI | Ctrl+Z=Undo | Ctrl+Shift+E=Reset effets | Ctrl+Shift+R=Clear');
-console.log('🎯 Centrer sur origine | Drag pour naviguer | Molette pour zoom');
+// Also join gamemaster room to receive game events
+socket.emit('gamemaster:join');
+
+console.log('[Admin] Picturaevox 3.5 Admin Panel loaded');
+console.log('[Admin] Shortcuts: H=UI | V=Pan | D=Delete | +/-=Zoom | 0=Reset | Ctrl+Z=Undo | Ctrl+S=Export | Tab=Sidebar');

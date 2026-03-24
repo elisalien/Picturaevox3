@@ -86,6 +86,23 @@ const MAX_SHAPES = 1000; // Augmenté de 500 à 1000
 const CLEANUP_INTERVAL = 60000;
 const SHAPE_TTL = 600000; // Augmenté de 5 min à 10 min
 
+// === ADMIN STATE ===
+const adminState = {
+  games: {
+    cadavre:   { enabled: false, status: 'stopped', players: 0 },
+    telephone: { enabled: false, status: 'stopped', players: 0 },
+    devine:    { enabled: false, status: 'stopped', players: 0 },
+    theme:     { enabled: false, status: 'stopped', players: 0 }
+  },
+  outputLayout: {
+    canvas: true,
+    cadavre: false,
+    telephone: false,
+    devine: false,
+    theme: false
+  }
+};
+
 // === CADAVRE EXQUIS GAME STATE ===
 const gameState = {
   status: 'waiting', // waiting | playing | revealing
@@ -101,6 +118,48 @@ const gameState = {
 
 // Galerie persistante des résultats de jeu
 const gameGallery = [];
+
+// === TELEPHONE GRIBOUILLIS STATE ===
+const telephoneState = {
+  status: 'stopped', // stopped | playing | revealing
+  chains: [], // array of chains, each chain = [{type: 'word'|'drawing', content, author}]
+  players: new Map(),
+  currentRound: 0,
+  timer: null,
+  timerValue: 0,
+  settings: { roundDuration: 30 }
+};
+
+// === DESSINE-DEVINE STATE ===
+const devineState = {
+  status: 'stopped', // stopped | playing | revealing
+  currentDrawer: null,
+  currentWord: null,
+  players: new Map(),
+  scores: new Map(),
+  timer: null,
+  timerValue: 0,
+  round: 0,
+  settings: { roundDuration: 60 },
+  wordList: [
+    'chat', 'maison', 'soleil', 'arbre', 'voiture', 'fusee', 'robot', 'pizza',
+    'dragon', 'guitare', 'montagne', 'bateau', 'avion', 'fleur', 'etoile',
+    'ballon', 'chapeau', 'poisson', 'fantome', 'parapluie', 'licorne',
+    'dinosaure', 'gateau', 'train', 'papillon', 'nuage', 'arc-en-ciel',
+    'bonhomme de neige', 'chateau', 'sirene', 'hibou', 'cactus', 'igloo'
+  ]
+};
+
+// === LE GRAND THEME STATE ===
+const themeState = {
+  status: 'stopped', // stopped | playing | revealing
+  currentTheme: '',
+  players: new Map(),
+  drawings: new Map(),
+  timer: null,
+  timerValue: 0,
+  settings: { drawDuration: 120 }
+};
 
 function getGamePlayerList() {
   return Array.from(gameState.players.values()).map(p => ({ pseudo: p.pseudo, socketId: p.socketId }));
@@ -325,20 +384,12 @@ app.get('/chantilly', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-app.get('/atelier', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'atelier.html'));
-});
-
 app.get('/game', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'game.html'));
 });
 
-app.get('/gamemaster', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'gamemaster.html'));
-});
-
-app.get('/exquiscadavre', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'exquiscadavre.html'));
+app.get('/output', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'output.html'));
 });
 
 app.get('/', (req, res) => {
@@ -575,6 +626,12 @@ io.on('connection', socket => {
     io.emit('adminResetBrushEffects');
   });
 
+  // === GAME MODE AVAILABILITY ===
+
+  socket.on('game:getAvailableModes', () => {
+    socket.emit('game:availableModes', adminState.games);
+  });
+
   // === CADAVRE EXQUIS GAME EVENTS ===
 
   socket.on('game:join', ({ pseudo }) => {
@@ -726,14 +783,339 @@ io.on('connection', socket => {
     console.log('🗑️ Game gallery cleared');
   });
 
+  // === ADMIN EVENTS ===
+
+  socket.on('admin:join', () => {
+    socket.join('admin-room');
+    socket.join('gamemaster-room'); // Also receive game events
+    const connectedPlayers = io.engine.clientsCount;
+    socket.emit('admin:state', {
+      games: adminState.games,
+      outputLayout: adminState.outputLayout,
+      connectedPlayers
+    });
+    console.log('Admin panel connected');
+  });
+
+  socket.on('admin:enableGame', ({ game, enabled }) => {
+    if (adminState.games[game]) {
+      adminState.games[game].enabled = enabled;
+      if (!enabled) {
+        adminState.games[game].status = 'stopped';
+      }
+      io.to('admin-room').emit('admin:gamesUpdate', adminState.games);
+      console.log(`Admin: ${game} ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  });
+
+  socket.on('admin:outputLayout', ({ layout }) => {
+    Object.assign(adminState.outputLayout, layout);
+    io.to('output-room').emit('output:layout', adminState.outputLayout);
+    console.log('Admin: output layout updated', adminState.outputLayout);
+  });
+
+  socket.on('admin:resetAll', () => {
+    // Reset all game states
+    Object.keys(adminState.games).forEach(game => {
+      adminState.games[game].enabled = false;
+      adminState.games[game].status = 'stopped';
+      adminState.games[game].players = 0;
+    });
+    resetGame();
+    telephoneState.status = 'stopped';
+    telephoneState.chains = [];
+    telephoneState.players.clear();
+    devineState.status = 'stopped';
+    devineState.players.clear();
+    devineState.scores.clear();
+    themeState.status = 'stopped';
+    themeState.players.clear();
+    themeState.drawings.clear();
+    io.to('admin-room').emit('admin:gamesUpdate', adminState.games);
+    console.log('Admin: full reset');
+  });
+
+  // === OUTPUT (PROJECTION) EVENTS ===
+
+  socket.on('output:join', () => {
+    socket.join('output-room');
+    socket.emit('output:layout', adminState.outputLayout);
+    // Send latest game results if any
+    if (gameGallery.length > 0) {
+      socket.emit('game:gallery', gameGallery);
+    }
+    if (gameState.lastResults) {
+      socket.emit('game:reveal', gameState.lastResults);
+    }
+    console.log('Output screen connected');
+  });
+
+  // === TELEPHONE GRIBOUILLIS EVENTS ===
+
+  socket.on('telephone:join', ({ pseudo }) => {
+    telephoneState.players.set(socket.id, { pseudo, socketId: socket.id });
+    socket.join('telephone-room');
+    adminState.games.telephone.players = telephoneState.players.size;
+    io.to('admin-room').emit('telephone:update', {
+      status: telephoneState.status,
+      players: telephoneState.players.size
+    });
+    console.log(`Telephone: ${pseudo} joined (${telephoneState.players.size} players)`);
+  });
+
+  socket.on('telephone:start', () => {
+    if (!adminState.games.telephone.enabled) return;
+    const players = Array.from(telephoneState.players.values());
+    if (players.length < 2) return;
+
+    telephoneState.status = 'playing';
+    telephoneState.currentRound = 0;
+    telephoneState.chains = players.map(p => [{
+      type: 'word',
+      content: '',
+      author: p.pseudo,
+      socketId: p.socketId
+    }]);
+
+    adminState.games.telephone.status = 'playing';
+    io.to('admin-room').emit('telephone:update', { status: 'playing', players: players.length });
+
+    // Ask each player to write a word/phrase
+    players.forEach(p => {
+      io.to(p.socketId).emit('telephone:prompt', {
+        type: 'word',
+        round: 0,
+        message: 'Ecris un mot ou une phrase que les autres vont dessiner !'
+      });
+    });
+
+    // Start timer
+    telephoneState.timerValue = telephoneState.settings.roundDuration;
+    io.to('telephone-room').emit('telephone:timerStart', telephoneState.timerValue);
+    telephoneState.timer = setInterval(() => {
+      telephoneState.timerValue--;
+      io.to('telephone-room').emit('telephone:timer', telephoneState.timerValue);
+      if (telephoneState.timerValue <= 0) {
+        clearInterval(telephoneState.timer);
+        telephoneState.timer = null;
+        io.to('telephone-room').emit('telephone:timeUp');
+      }
+    }, 1000);
+
+    console.log(`Telephone started: ${players.length} players`);
+  });
+
+  socket.on('telephone:submit', ({ content, round }) => {
+    // Find which chain this player is working on
+    const playerIndex = Array.from(telephoneState.players.keys()).indexOf(socket.id);
+    if (playerIndex < 0) return;
+
+    const chainIndex = (playerIndex + round) % telephoneState.chains.length;
+    const chain = telephoneState.chains[chainIndex];
+    if (!chain) return;
+
+    const player = telephoneState.players.get(socket.id);
+    chain.push({
+      type: round % 2 === 0 ? 'word' : 'drawing',
+      content,
+      author: player ? player.pseudo : 'unknown',
+      socketId: socket.id
+    });
+
+    // Check if all submissions for this round are in
+    const expectedSubmissions = telephoneState.players.size * (round + 1) + telephoneState.players.size;
+    const totalSubmissions = telephoneState.chains.reduce((sum, c) => sum + c.length, 0);
+
+    if (totalSubmissions >= expectedSubmissions) {
+      telephoneState.currentRound++;
+      if (telephoneState.currentRound >= telephoneState.players.size - 1) {
+        // Game over - reveal chains
+        telephoneState.status = 'revealing';
+        adminState.games.telephone.status = 'revealing';
+        io.to('telephone-room').emit('telephone:reveal', telephoneState.chains);
+        io.to('output-room').emit('telephone:reveal', telephoneState.chains);
+        io.to('admin-room').emit('telephone:update', { status: 'revealing' });
+      } else {
+        // Next round
+        startTelephoneRound(telephoneState.currentRound);
+      }
+    }
+  });
+
+  socket.on('telephone:reset', () => {
+    if (telephoneState.timer) { clearInterval(telephoneState.timer); telephoneState.timer = null; }
+    telephoneState.status = 'stopped';
+    telephoneState.chains = [];
+    telephoneState.currentRound = 0;
+    adminState.games.telephone.status = 'stopped';
+    io.to('telephone-room').emit('telephone:reset');
+    io.to('admin-room').emit('telephone:update', { status: 'stopped' });
+    console.log('Telephone reset');
+  });
+
+  // === DESSINE-DEVINE EVENTS ===
+
+  socket.on('devine:join', ({ pseudo }) => {
+    devineState.players.set(socket.id, { pseudo, socketId: socket.id });
+    devineState.scores.set(socket.id, 0);
+    socket.join('devine-room');
+    adminState.games.devine.players = devineState.players.size;
+    io.to('admin-room').emit('devine:update', {
+      status: devineState.status,
+      players: devineState.players.size
+    });
+
+    // Send current scores
+    socket.emit('devine:scores', Object.fromEntries(
+      Array.from(devineState.scores.entries()).map(([id, score]) => {
+        const p = devineState.players.get(id);
+        return [id, { pseudo: p ? p.pseudo : '?', score }];
+      })
+    ));
+    console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
+  });
+
+  socket.on('devine:start', () => {
+    if (!adminState.games.devine.enabled) return;
+    if (devineState.players.size < 2) return;
+    devineState.round = 0;
+    startDevineRound();
+  });
+
+  socket.on('devine:drawing', (data) => {
+    // Broadcast live drawing to guessers
+    if (devineState.status === 'playing' && socket.id === devineState.currentDrawer) {
+      socket.broadcast.to('devine-room').emit('devine:drawing', data);
+      io.to('output-room').emit('devine:drawing', data);
+    }
+  });
+
+  socket.on('devine:guess', ({ guess }) => {
+    if (devineState.status !== 'playing') return;
+    if (socket.id === devineState.currentDrawer) return;
+    if (!devineState.currentWord) return;
+
+    const player = devineState.players.get(socket.id);
+    const pseudo = player ? player.pseudo : '?';
+
+    // Check guess using Levenshtein
+    const normalizedGuess = guess.toLowerCase().trim();
+    const normalizedWord = devineState.currentWord.toLowerCase().trim();
+    const distance = levenshteinDistance(normalizedGuess, normalizedWord);
+
+    if (distance === 0) {
+      // Correct!
+      const guesserScore = (devineState.scores.get(socket.id) || 0) + 10;
+      const drawerScore = (devineState.scores.get(devineState.currentDrawer) || 0) + 5;
+      devineState.scores.set(socket.id, guesserScore);
+      devineState.scores.set(devineState.currentDrawer, drawerScore);
+
+      io.to('devine-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
+      io.to('output-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
+      broadcastDevineScores();
+
+      // Start next round after a short delay
+      if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
+      setTimeout(() => startDevineRound(), 3000);
+    } else if (distance <= 2) {
+      // Close
+      io.to(socket.id).emit('devine:close', { guess });
+      io.to('devine-room').emit('devine:chatMessage', { pseudo, message: guess, close: true });
+    } else {
+      // Wrong
+      io.to('devine-room').emit('devine:chatMessage', { pseudo, message: guess, close: false });
+    }
+  });
+
+  socket.on('devine:reset', () => {
+    if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
+    devineState.status = 'stopped';
+    devineState.currentDrawer = null;
+    devineState.currentWord = null;
+    devineState.scores.clear();
+    devineState.round = 0;
+    adminState.games.devine.status = 'stopped';
+    io.to('devine-room').emit('devine:reset');
+    io.to('admin-room').emit('devine:update', { status: 'stopped' });
+    console.log('Devine reset');
+  });
+
+  // === LE GRAND THEME EVENTS ===
+
+  socket.on('theme:join', ({ pseudo }) => {
+    themeState.players.set(socket.id, { pseudo, socketId: socket.id });
+    socket.join('theme-room');
+    adminState.games.theme.players = themeState.players.size;
+    io.to('admin-room').emit('theme:update', {
+      status: themeState.status,
+      players: themeState.players.size
+    });
+    if (themeState.status === 'playing') {
+      socket.emit('theme:started', { theme: themeState.currentTheme, timeRemaining: themeState.timerValue });
+    }
+    console.log(`Theme: ${pseudo} joined (${themeState.players.size} players)`);
+  });
+
+  socket.on('theme:start', ({ theme }) => {
+    if (!adminState.games.theme.enabled) return;
+    themeState.currentTheme = theme || 'Theme libre';
+    themeState.status = 'playing';
+    themeState.drawings.clear();
+
+    adminState.games.theme.status = 'playing';
+    io.to('theme-room').emit('theme:started', { theme: themeState.currentTheme, timeRemaining: themeState.settings.drawDuration });
+    io.to('admin-room').emit('theme:update', { status: 'playing' });
+    io.to('output-room').emit('theme:started', { theme: themeState.currentTheme });
+
+    // Timer
+    themeState.timerValue = themeState.settings.drawDuration;
+    io.to('theme-room').emit('theme:timerStart', themeState.timerValue);
+    themeState.timer = setInterval(() => {
+      themeState.timerValue--;
+      io.to('theme-room').emit('theme:timer', themeState.timerValue);
+      if (themeState.timerValue <= 0) {
+        clearInterval(themeState.timer);
+        themeState.timer = null;
+        io.to('theme-room').emit('theme:timeUp');
+        // Collect and reveal
+        setTimeout(() => revealThemeDrawings(), 3000);
+      }
+    }, 1000);
+
+    console.log(`Theme started: "${themeState.currentTheme}" (${themeState.players.size} players)`);
+  });
+
+  socket.on('theme:submitDrawing', ({ imageData }) => {
+    const player = themeState.players.get(socket.id);
+    if (!player) return;
+    themeState.drawings.set(socket.id, { imageData, pseudo: player.pseudo });
+    console.log(`Theme: drawing from ${player.pseudo} (${themeState.drawings.size}/${themeState.players.size})`);
+
+    if (themeState.drawings.size >= themeState.players.size) {
+      if (themeState.timer) { clearInterval(themeState.timer); themeState.timer = null; }
+      revealThemeDrawings();
+    }
+  });
+
+  socket.on('theme:reset', () => {
+    if (themeState.timer) { clearInterval(themeState.timer); themeState.timer = null; }
+    themeState.status = 'stopped';
+    themeState.drawings.clear();
+    themeState.currentTheme = '';
+    adminState.games.theme.status = 'stopped';
+    io.to('theme-room').emit('theme:reset');
+    io.to('admin-room').emit('theme:update', { status: 'stopped' });
+    console.log('Theme reset');
+  });
+
   // === END GAME EVENTS ===
 
   socket.on('disconnect', (reason) => {
     const remainingClients = io.engine.clientsCount;
-    console.log(`👋 USER DISCONNECTED: ${socket.id} (Reason: ${reason}, Remaining: ${remainingClients})`);
+    console.log(`USER DISCONNECTED: ${socket.id} (Reason: ${reason}, Remaining: ${remainingClients})`);
     socket.broadcast.emit('cleanupUserEffects', { socketId: socket.id });
 
-    // Remove from game if applicable
+    // Remove from cadavre exquis
     if (gameState.players.has(socket.id)) {
       gameState.players.delete(socket.id);
       const playerList = getGamePlayerList();
@@ -741,8 +1123,176 @@ io.on('connection', socket => {
       io.to('gamemaster-room').emit('game:playerList', playerList);
       io.to('gamemaster-room').emit('game:teamCount', getGameTeamCount(playerList.length));
     }
+
+    // Remove from telephone
+    if (telephoneState.players.has(socket.id)) {
+      telephoneState.players.delete(socket.id);
+      adminState.games.telephone.players = telephoneState.players.size;
+      io.to('admin-room').emit('telephone:update', { players: telephoneState.players.size });
+    }
+
+    // Remove from devine
+    if (devineState.players.has(socket.id)) {
+      devineState.players.delete(socket.id);
+      adminState.games.devine.players = devineState.players.size;
+      io.to('admin-room').emit('devine:update', { players: devineState.players.size });
+    }
+
+    // Remove from theme
+    if (themeState.players.has(socket.id)) {
+      themeState.players.delete(socket.id);
+      adminState.games.theme.players = themeState.players.size;
+      io.to('admin-room').emit('theme:update', { players: themeState.players.size });
+    }
+
+    // Update admin player count
+    setTimeout(() => {
+      io.to('admin-room').emit('admin:state', { connectedPlayers: io.engine.clientsCount });
+    }, 100);
   });
 });
+
+// === HELPER FUNCTIONS FOR GAME MODES ===
+
+function startTelephoneRound(round) {
+  const players = Array.from(telephoneState.players.values());
+  const isDrawRound = round % 2 !== 0;
+
+  players.forEach((player, idx) => {
+    const chainIndex = (idx + round) % telephoneState.chains.length;
+    const chain = telephoneState.chains[chainIndex];
+    const lastEntry = chain[chain.length - 1];
+
+    io.to(player.socketId).emit('telephone:prompt', {
+      type: isDrawRound ? 'drawing' : 'word',
+      round,
+      content: lastEntry.content,
+      message: isDrawRound
+        ? 'Dessine ce que tu lis !'
+        : 'Decris ce que tu vois !'
+    });
+  });
+
+  telephoneState.timerValue = telephoneState.settings.roundDuration;
+  io.to('telephone-room').emit('telephone:timerStart', telephoneState.timerValue);
+  if (telephoneState.timer) clearInterval(telephoneState.timer);
+  telephoneState.timer = setInterval(() => {
+    telephoneState.timerValue--;
+    io.to('telephone-room').emit('telephone:timer', telephoneState.timerValue);
+    if (telephoneState.timerValue <= 0) {
+      clearInterval(telephoneState.timer);
+      telephoneState.timer = null;
+      io.to('telephone-room').emit('telephone:timeUp');
+    }
+  }, 1000);
+}
+
+function startDevineRound() {
+  const players = Array.from(devineState.players.keys());
+  if (players.length < 2) return;
+
+  devineState.round++;
+  const drawerIndex = (devineState.round - 1) % players.length;
+  devineState.currentDrawer = players[drawerIndex];
+  devineState.currentWord = devineState.wordList[Math.floor(Math.random() * devineState.wordList.length)];
+  devineState.status = 'playing';
+  adminState.games.devine.status = 'playing';
+
+  const drawerPlayer = devineState.players.get(devineState.currentDrawer);
+  const drawerPseudo = drawerPlayer ? drawerPlayer.pseudo : '?';
+
+  // Notify drawer
+  io.to(devineState.currentDrawer).emit('devine:youDraw', {
+    word: devineState.currentWord,
+    round: devineState.round
+  });
+
+  // Notify guessers
+  players.forEach(id => {
+    if (id !== devineState.currentDrawer) {
+      io.to(id).emit('devine:guessMode', {
+        drawer: drawerPseudo,
+        round: devineState.round
+      });
+    }
+  });
+
+  io.to('output-room').emit('devine:roundStart', { drawer: drawerPseudo, round: devineState.round });
+  io.to('admin-room').emit('devine:update', { status: 'playing' });
+
+  // Timer
+  devineState.timerValue = devineState.settings.roundDuration;
+  io.to('devine-room').emit('devine:timerStart', devineState.timerValue);
+  if (devineState.timer) clearInterval(devineState.timer);
+  devineState.timer = setInterval(() => {
+    devineState.timerValue--;
+    io.to('devine-room').emit('devine:timer', devineState.timerValue);
+    if (devineState.timerValue <= 0) {
+      clearInterval(devineState.timer);
+      devineState.timer = null;
+      io.to('devine-room').emit('devine:timeUp', { word: devineState.currentWord });
+      io.to('output-room').emit('devine:timeUp', { word: devineState.currentWord });
+      setTimeout(() => startDevineRound(), 3000);
+    }
+  }, 1000);
+
+  console.log(`Devine round ${devineState.round}: ${drawerPseudo} draws "${devineState.currentWord}"`);
+}
+
+function broadcastDevineScores() {
+  const scores = Object.fromEntries(
+    Array.from(devineState.scores.entries()).map(([id, score]) => {
+      const p = devineState.players.get(id);
+      return [id, { pseudo: p ? p.pseudo : '?', score }];
+    })
+  );
+  io.to('devine-room').emit('devine:scores', scores);
+  io.to('output-room').emit('devine:scores', scores);
+}
+
+function revealThemeDrawings() {
+  themeState.status = 'revealing';
+  adminState.games.theme.status = 'revealing';
+
+  const results = Array.from(themeState.drawings.entries()).map(([socketId, data]) => ({
+    pseudo: data.pseudo,
+    imageData: data.imageData
+  }));
+
+  io.to('theme-room').emit('theme:reveal', { theme: themeState.currentTheme, drawings: results });
+  io.to('output-room').emit('theme:reveal', { theme: themeState.currentTheme, drawings: results });
+  io.to('admin-room').emit('theme:update', { status: 'revealing' });
+
+  console.log(`Theme revealed: ${results.length} drawings for "${themeState.currentTheme}"`);
+}
+
+// Levenshtein distance (server-side for devine)
+function levenshteinDistance(a, b) {
+  a = a.toLowerCase().trim();
+  b = b.toLowerCase().trim();
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
 
 // Fonction pour générer un ID de tracé permanent
 function generateTraceId() {
