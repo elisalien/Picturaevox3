@@ -475,6 +475,56 @@
       color: #eee;
     }
 
+    /* Demo mode */
+    .demo-theme-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .demo-theme-chip {
+      padding: 4px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .demo-theme-chip:hover {
+      background: var(--accent-dim);
+      border-color: rgba(0, 217, 255, 0.3);
+      color: var(--accent);
+    }
+    .demo-theme-chip.used {
+      opacity: 0.3;
+      text-decoration: line-through;
+      pointer-events: none;
+    }
+    .demo-theme-chip.current {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .demo-queue-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: rgba(0, 217, 255, 0.06);
+      border: 1px solid rgba(0, 217, 255, 0.15);
+      border-radius: 8px;
+    }
+    .demo-queue-info span {
+      flex: 1;
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
     /* Minimap */
     #minimap {
       position: fixed;
@@ -730,6 +780,31 @@
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn-sm btn-accent" id="open-output" title="Ouvrir la projection">Ouvrir Output</button>
           <button class="btn-sm btn-ghost" id="send-layout">Envoyer Layout</button>
+        </div>
+      </div>
+
+      <!-- MODE DEMO -->
+      <div class="panel-section">
+        <div class="panel-section-title">Mode Demo</div>
+        <div class="demo-controls">
+          <button class="btn-sm btn-accent" id="demo-activate" style="width: 100%; margin-bottom: 8px;">Activer Mode Demo</button>
+          <div class="demo-theme-list" id="demo-theme-list">
+            <div class="demo-theme-chip" data-theme="Poissons">Poissons</div>
+            <div class="demo-theme-chip" data-theme="Espace">Espace</div>
+            <div class="demo-theme-chip" data-theme="Cyber">Cyber</div>
+            <div class="demo-theme-chip" data-theme="Kaleidoscope">Kaleidoscope</div>
+            <div class="demo-theme-chip" data-theme="Glitch">Glitch</div>
+            <div class="demo-theme-chip" data-theme="Dinosaure">Dinosaure</div>
+            <div class="demo-theme-chip" data-theme="Urbain">Urbain</div>
+            <div class="demo-theme-chip" data-theme="Danseur">Danseur</div>
+            <div class="demo-theme-chip" data-theme="Nuage">Nuage</div>
+            <div class="demo-theme-chip" data-theme="Synthwave">Synthwave</div>
+          </div>
+          <div class="demo-queue-info" id="demo-queue-info" style="display: none;">
+            <span id="demo-queue-text"></span>
+            <button class="btn-sm btn-ghost" id="demo-next" title="Lancer le prochain theme">Suivant</button>
+            <button class="btn-sm btn-ghost" id="demo-stop">Quitter Demo</button>
+          </div>
         </div>
       </div>
 

@@ -824,6 +824,119 @@ document.getElementById('open-output').addEventListener('click', () => {
   window.open('/output', '_blank');
 });
 
+// === MODE DEMO ===
+const demoThemes = [
+  'Poissons', 'Espace', 'Cyber', 'Kaleidoscope', 'Glitch',
+  'Dinosaure', 'Urbain', 'Danseur', 'Nuage', 'Synthwave'
+];
+let demoActive = false;
+let demoUsed = new Set();
+let demoCurrent = null;
+
+function updateDemoUI() {
+  const queueInfo = document.getElementById('demo-queue-info');
+  const queueText = document.getElementById('demo-queue-text');
+  const activateBtn = document.getElementById('demo-activate');
+
+  document.querySelectorAll('.demo-theme-chip').forEach(chip => {
+    const theme = chip.dataset.theme;
+    chip.classList.toggle('used', demoUsed.has(theme));
+    chip.classList.toggle('current', theme === demoCurrent);
+  });
+
+  if (demoActive) {
+    activateBtn.style.display = 'none';
+    queueInfo.style.display = 'flex';
+    const remaining = demoThemes.length - demoUsed.size;
+    queueText.textContent = demoCurrent
+      ? `En cours : ${demoCurrent} (${remaining} restants)`
+      : `${remaining} themes restants`;
+  } else {
+    activateBtn.style.display = '';
+    queueInfo.style.display = 'none';
+  }
+}
+
+function demoLaunchTheme(theme) {
+  demoCurrent = theme;
+  demoUsed.add(theme);
+
+  // Enable all games
+  ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+    if (!adminState.games[game].enabled) {
+      adminState.games[game].enabled = true;
+      const toggle = document.getElementById('toggle-' + game);
+      if (toggle) toggle.checked = true;
+      connectionManager.emit('admin:enableGame', { game, enabled: true });
+      updateGameCardUI(game);
+    }
+  });
+
+  // Set theme and launch
+  document.getElementById('theme-custom-input').value = theme;
+  connectionManager.emit('theme:start', { theme });
+  showAdminNotification('Demo : ' + theme);
+  updateDemoUI();
+}
+
+document.getElementById('demo-activate').addEventListener('click', () => {
+  demoActive = true;
+  demoUsed.clear();
+  demoCurrent = null;
+
+  // Enable all games
+  ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+    adminState.games[game].enabled = true;
+    const toggle = document.getElementById('toggle-' + game);
+    if (toggle) toggle.checked = true;
+    connectionManager.emit('admin:enableGame', { game, enabled: true });
+    updateGameCardUI(game);
+  });
+
+  showAdminNotification('Mode Demo active - tous les jeux ouverts');
+  updateDemoUI();
+});
+
+// Click on a demo theme chip to launch it
+document.querySelectorAll('.demo-theme-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    if (!demoActive) {
+      demoActive = true;
+      demoUsed.clear();
+      // Enable all games
+      ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+        adminState.games[game].enabled = true;
+        const toggle = document.getElementById('toggle-' + game);
+        if (toggle) toggle.checked = true;
+        connectionManager.emit('admin:enableGame', { game, enabled: true });
+        updateGameCardUI(game);
+      });
+    }
+    demoLaunchTheme(chip.dataset.theme);
+  });
+});
+
+document.getElementById('demo-next').addEventListener('click', () => {
+  const next = demoThemes.find(t => !demoUsed.has(t));
+  if (next) {
+    // Reset theme game first if playing
+    connectionManager.emit('theme:reset');
+    adminState.games.theme.status = 'stopped';
+    updateGameCardUI('theme');
+    setTimeout(() => demoLaunchTheme(next), 300);
+  } else {
+    showAdminNotification('Demo terminee - tous les themes joues !');
+  }
+});
+
+document.getElementById('demo-stop').addEventListener('click', () => {
+  demoActive = false;
+  demoCurrent = null;
+  demoUsed.clear();
+  updateDemoUI();
+  showAdminNotification('Mode Demo desactive');
+});
+
 // Reset all
 document.getElementById('reset-all').addEventListener('click', () => {
   if (confirm('ATTENTION: Cela va reinitialiser TOUT (canvas + tous les jeux + galeries). Continuer ?')) {
