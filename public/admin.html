@@ -781,6 +781,80 @@
         </div>
       </div>
 
+      <!-- QR CODES -->
+      <div class="panel-section">
+        <div class="panel-section-title">QR Codes (Event)</div>
+
+        <!-- Config -->
+        <div class="game-card">
+          <div class="game-card-header">
+            <span class="game-card-name">Configuration</span>
+          </div>
+          <div class="theme-input-group" style="margin-top: 4px;">
+            <input type="text" id="qr-server-ip" placeholder="IP du serveur" value="" style="flex:2;" />
+            <input type="number" id="qr-server-port" placeholder="Port" value="3000" style="flex:1;" />
+          </div>
+          <div class="theme-input-group">
+            <select id="qr-target-page" style="flex:1;">
+              <option value="/">Canvas libre</option>
+              <option value="/game" selected>Page de jeu</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Wi-Fi config -->
+        <div class="game-card" style="margin-top: 6px;">
+          <div class="game-card-header">
+            <span class="game-card-name">Wi-Fi</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="qr-wifi-enabled" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="theme-input-group" style="margin-top: 4px;">
+            <input type="text" id="qr-wifi-ssid" placeholder="Nom du reseau" value="PICTURAEVOX" style="flex:2;" />
+          </div>
+          <div class="theme-input-group">
+            <input type="text" id="qr-wifi-password" placeholder="Mot de passe (vide = ouvert)" value="" style="flex:2;" />
+            <select id="qr-wifi-security" style="flex:1;">
+              <option value="WPA">WPA</option>
+              <option value="WEP">WEP</option>
+              <option value="nopass">Ouvert</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <div style="margin-top: 8px;">
+          <button class="btn-sm btn-accent" id="qr-generate" style="width: 100%;">Generer QR Codes</button>
+        </div>
+
+        <!-- QR display -->
+        <div id="qr-display" style="display:none; margin-top: 10px;">
+          <!-- Wi-Fi QR -->
+          <div id="qr-wifi-section" style="margin-bottom: 10px;">
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; text-align:center;">Wi-Fi</div>
+            <div id="qr-wifi-canvas" style="display:flex; justify-content:center;"></div>
+            <div style="text-align:center; margin-top:4px;">
+              <span id="qr-wifi-label" style="font-size:10px; color:var(--text-secondary);"></span>
+            </div>
+          </div>
+          <!-- URL QR -->
+          <div>
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; text-align:center;">Picturaevox</div>
+            <div id="qr-url-canvas" style="display:flex; justify-content:center;"></div>
+            <div style="text-align:center; margin-top:4px;">
+              <span id="qr-url-label" style="font-size:10px; color:var(--accent); font-weight:600;"></span>
+            </div>
+          </div>
+          <!-- Actions -->
+          <div style="display:flex; gap:6px; margin-top:10px;">
+            <button class="btn-sm btn-ghost" id="qr-fullscreen" style="flex:1;">Plein ecran</button>
+            <button class="btn-sm btn-ghost" id="qr-download" style="flex:1;">Telecharger</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- SIDEBAR FOOTER -->
@@ -795,6 +869,12 @@
   <!-- MINIMAP -->
   <canvas id="minimap" width="160" height="120"></canvas>
 
+  <!-- QR FULLSCREEN OVERLAY -->
+  <div id="qr-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:#000; flex-direction:column; align-items:center; justify-content:center; cursor:pointer;">
+    <div id="qr-overlay-content" style="text-align:center; max-width:90vw;"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="connectionManager.js"></script>
