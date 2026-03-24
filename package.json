@@ -16,6 +16,7 @@
     "ioredis": "^5.8.1",
     "msgpack-lite": "^0.1.26",
     "node-osc": "^11.3.0",
+    "qrcode": "^1.5.4",
     "redis": "^5.8.3",
     "socket.io": "^4.6.1"
   },
