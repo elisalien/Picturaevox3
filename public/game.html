@@ -497,9 +497,179 @@
       .mode-select h1 { font-size: 22px; }
       .draw-toolbar .color-dot { width: 24px; height: 24px; }
     }
+
+    /* === WORD CHOICE PHASE === */
+    .word-choice-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .word-choice-phase.visible { display: block; }
+    .word-choice-phase h2 { color: #fff; font-size: 20px; margin: 0 0 6px; }
+    .word-choice-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .word-choice-card {
+      padding: 18px 20px;
+      background: rgba(18, 18, 24, 0.92);
+      border: 2px solid rgba(107, 91, 255, 0.25);
+      border-radius: 14px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    .word-choice-card:hover {
+      border-color: #6b5bff;
+      background: rgba(107, 91, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(107, 91, 255, 0.3);
+    }
+    .word-choice-card:active { transform: scale(0.97); }
+
+    /* === DEVINE WAITING PHASE === */
+    .devine-waiting-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .devine-waiting-phase.visible { display: block; }
+    .devine-waiting-phase h2 { color: #fff; font-size: 20px; margin: 0 0 8px; }
+
+    /* === DEVINE WIN PHASE === */
+    .devine-win-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .devine-win-phase.visible { display: block; }
+    .win-icon { font-size: 64px; margin-bottom: 12px; }
+    .devine-win-phase h2 { color: #FFD740; font-size: 26px; margin: 0 0 8px; font-weight: 700; }
+    .devine-win-phase p { color: #bbb; font-size: 16px; margin: 0 0 20px; }
+
+    /* === TARGET SCORE INDICATOR === */
+    .target-score-indicator {
+      color: rgba(255,255,255,0.35);
+      font-size: 11px;
+      text-align: center;
+      margin-top: 6px;
+    }
+    .target-score-indicator strong { color: #6b5bff; }
+
+    /* === SHARED CANVAS BACKGROUND === */
+    #shared-canvas-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.25;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      touch-action: none;
+    }
+    #shared-canvas-bg.drawing-active {
+      opacity: 0.6;
+      pointer-events: auto;
+      z-index: 0;
+    }
+    #shared-canvas-bg #shared-canvas-container {
+      width: 100%;
+      height: 100%;
+    }
+    #shared-canvas-bg #shared-canvas-container canvas,
+    #shared-canvas-bg #shared-canvas-container .konvajs-content {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Draw toggle button when in lobby */
+    .lobby-draw-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 500;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #6b5bff, #8b7aff);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(107, 91, 255, 0.4);
+      transition: all 0.2s;
+      display: none;
+    }
+    .lobby-draw-toggle:hover { transform: scale(1.05); }
+    .lobby-draw-toggle:active { transform: scale(0.95); }
+    .lobby-draw-toggle.visible { display: block; }
+    .lobby-draw-toggle.active {
+      background: linear-gradient(135deg, #FF5252, #FF8A80);
+      box-shadow: 0 4px 20px rgba(255, 82, 82, 0.4);
+    }
+
+    /* Mini toolbar for shared drawing in lobby */
+    .lobby-draw-toolbar {
+      position: fixed;
+      bottom: 70px;
+      right: 20px;
+      z-index: 500;
+      display: none;
+      gap: 4px;
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 12px;
+      padding: 8px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+      flex-direction: column;
+      align-items: center;
+    }
+    .lobby-draw-toolbar.visible { display: flex; }
+    .lobby-draw-toolbar .ldt-colors {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 120px;
+    }
+    .lobby-draw-toolbar .ldt-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .lobby-draw-toolbar .ldt-dot.active { border-color: #fff; }
   </style>
 </head>
 <body>
+
+  <!-- SHARED CANVAS BACKGROUND (visible during mode-select & lobby) -->
+  <div id="shared-canvas-bg">
+    <div id="shared-canvas-container"></div>
+  </div>
+
+  <!-- Draw toggle for lobby -->
+  <button class="lobby-draw-toggle" id="lobby-draw-toggle">Dessiner sur la toile</button>
+  <div class="lobby-draw-toolbar" id="lobby-draw-toolbar">
+    <div class="ldt-colors">
+      <div class="ldt-dot active" data-color="#FFFFFF" style="background:#FFFFFF;"></div>
+      <div class="ldt-dot" data-color="#FF5252" style="background:#FF5252;"></div>
+      <div class="ldt-dot" data-color="#FFD740" style="background:#FFD740;"></div>
+      <div class="ldt-dot" data-color="#40C4FF" style="background:#40C4FF;"></div>
+      <div class="ldt-dot" data-color="#69F0AE" style="background:#69F0AE;"></div>
+      <div class="ldt-dot" data-color="#E040FB" style="background:#E040FB;"></div>
+    </div>
+  </div>
 
   <!-- MODE SELECT -->
   <div class="mode-select" id="mode-select-phase">
@@ -603,6 +773,29 @@
     <button class="word-submit-btn" id="word-submit-btn">Envoyer</button>
   </div>
 
+  <!-- WORD CHOICE PHASE (Dessine-Devine) -->
+  <div class="word-choice-phase" id="word-choice-phase">
+    <h2>Choisis un mot a dessiner</h2>
+    <p class="subtitle" id="word-choice-timer">15s</p>
+    <div class="word-choice-grid" id="word-choice-grid"></div>
+  </div>
+
+  <!-- DEVINE WAITING PHASE -->
+  <div class="devine-waiting-phase" id="devine-waiting-phase">
+    <h2 id="devine-waiting-title">Le dessinateur choisit son mot...</h2>
+    <p class="subtitle"><span class="pulse-dot"></span> Prepare-toi a deviner !</p>
+    <div class="scoreboard" id="devine-waiting-scoreboard"></div>
+  </div>
+
+  <!-- DEVINE WIN PHASE -->
+  <div class="devine-win-phase" id="devine-win-phase">
+    <div class="win-icon">&#x1F3C6;</div>
+    <h2 id="devine-win-title">Victoire !</h2>
+    <p id="devine-win-text"></p>
+    <div class="scoreboard" id="devine-win-scoreboard"></div>
+    <button class="replay-btn" id="devine-replay-btn">Rejouer</button>
+  </div>
+
   <!-- DONE PHASE -->
   <div class="done-phase" id="done-phase">
     <h2 id="done-title">Dessin envoye !</h2>
@@ -633,8 +826,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
+  <script src="connectionManager.js"></script>
+  <script src="brushManager.js"></script>
   <script src="utils.js"></script>
   <script src="gameCanvas.js"></script>
   <script src="game.js"></script>
+  <script src="sharedCanvasLobby.js"></script>
 </body>
 </html>

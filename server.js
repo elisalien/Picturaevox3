@@ -132,23 +132,42 @@ const telephoneState = {
 };
 
 // === DESSINE-DEVINE STATE ===
+// Load word database
+const devineWordsDb = (() => {
+  try {
+    const db = require('./data/devineWords.json');
+    const allWords = [];
+    for (const cat of Object.values(db.categories)) {
+      allWords.push(...cat);
+    }
+    console.log(`[Devine] Loaded ${allWords.length} words from database`);
+    return { categories: db.categories, allWords };
+  } catch (e) {
+    console.warn('[Devine] Failed to load word database, using fallback');
+    const fallback = ['chat','maison','soleil','arbre','voiture','fusee','robot','pizza','dragon','guitare'];
+    return { categories: {}, allWords: fallback };
+  }
+})();
+
 const devineState = {
-  status: 'stopped', // stopped | playing | revealing
+  status: 'stopped', // stopped | choosingWord | playing | revealing | finished
   currentDrawer: null,
   currentWord: null,
+  wordChoices: [],       // 3 words offered to drawer
   players: new Map(),
   scores: new Map(),
+  foundThisRound: new Set(), // players who already guessed correctly this round
   timer: null,
+  choosingTimer: null,
   timerValue: 0,
   round: 0,
-  settings: { roundDuration: 60 },
-  wordList: [
-    'chat', 'maison', 'soleil', 'arbre', 'voiture', 'fusee', 'robot', 'pizza',
-    'dragon', 'guitare', 'montagne', 'bateau', 'avion', 'fleur', 'etoile',
-    'ballon', 'chapeau', 'poisson', 'fantome', 'parapluie', 'licorne',
-    'dinosaure', 'gateau', 'train', 'papillon', 'nuage', 'arc-en-ciel',
-    'bonhomme de neige', 'chateau', 'sirene', 'hibou', 'cactus', 'igloo'
-  ]
+  usedWords: new Set(),  // avoid repeats within a game session
+  settings: {
+    roundDuration: 60,
+    choosingDuration: 15,
+    targetScore: 5,
+    wordChoiceCount: 3
+  }
 };
 
 // === LE GRAND THEME STATE ===
@@ -214,6 +233,7 @@ function finalizeGame() {
   io.to('gamemaster-room').emit('game:revealing', results);
   io.to('gamemaster-room').emit('game:galleryUpdate', gameGallery);
   io.to('exquiscadavre-room').emit('game:reveal', results);
+  io.to('output-room').emit('game:reveal', results);
 
   osc.sendGameReveal('cadavre');
   osc.sendGameState('cadavre', 'revealing');
@@ -1009,7 +1029,9 @@ io.on('connection', socket => {
 
   socket.on('devine:join', ({ pseudo }) => {
     devineState.players.set(socket.id, { pseudo, socketId: socket.id });
-    devineState.scores.set(socket.id, 0);
+    if (!devineState.scores.has(socket.id)) {
+      devineState.scores.set(socket.id, 0);
+    }
     socket.join('devine-room');
     adminState.games.devine.players = devineState.players.size;
     io.to('admin-room').emit('devine:update', {
@@ -1017,21 +1039,45 @@ io.on('connection', socket => {
       players: devineState.players.size
     });
 
-    // Send current scores
+    // Send current scores + settings
     socket.emit('devine:scores', Object.fromEntries(
       Array.from(devineState.scores.entries()).map(([id, score]) => {
         const p = devineState.players.get(id);
         return [id, { pseudo: p ? p.pseudo : '?', score }];
       })
     ));
+    socket.emit('devine:settings', { targetScore: devineState.settings.targetScore });
     console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
   });
 
-  socket.on('devine:start', () => {
+  socket.on('devine:start', (opts) => {
     if (!adminState.games.devine.enabled) return;
     if (devineState.players.size < 2) return;
+    // Allow admin to set target score
+    if (opts && opts.targetScore) {
+      devineState.settings.targetScore = Math.max(1, Math.min(50, parseInt(opts.targetScore) || 5));
+    }
     devineState.round = 0;
+    devineState.usedWords.clear();
+    devineState.scores.forEach((_, key) => devineState.scores.set(key, 0));
+    broadcastDevineScores();
+    io.to('devine-room').emit('devine:settings', { targetScore: devineState.settings.targetScore });
     startDevineRound();
+  });
+
+  // Drawer chooses a word from the 3 options
+  socket.on('devine:chooseWord', ({ word }) => {
+    if (devineState.status !== 'choosingWord') return;
+    if (socket.id !== devineState.currentDrawer) return;
+    if (!devineState.wordChoices.includes(word)) return;
+
+    // Clear choosing timer
+    if (devineState.choosingTimer) { clearTimeout(devineState.choosingTimer); devineState.choosingTimer = null; }
+
+    devineState.currentWord = word;
+    devineState.usedWords.add(word);
+    devineState.foundThisRound.clear();
+    startDevineDrawPhase();
   });
 
   socket.on('devine:drawing', (data) => {
@@ -1046,6 +1092,8 @@ io.on('connection', socket => {
     if (devineState.status !== 'playing') return;
     if (socket.id === devineState.currentDrawer) return;
     if (!devineState.currentWord) return;
+    // Already found this round
+    if (devineState.foundThisRound.has(socket.id)) return;
 
     const player = devineState.players.get(socket.id);
     const pseudo = player ? player.pseudo : '?';
@@ -1056,21 +1104,47 @@ io.on('connection', socket => {
     const distance = levenshteinDistance(normalizedGuess, normalizedWord);
 
     if (distance === 0) {
-      // Correct!
-      const guesserScore = (devineState.scores.get(socket.id) || 0) + 10;
-      const drawerScore = (devineState.scores.get(devineState.currentDrawer) || 0) + 5;
-      devineState.scores.set(socket.id, guesserScore);
-      devineState.scores.set(devineState.currentDrawer, drawerScore);
+      // Correct! First guesser gets 1 point
+      devineState.foundThisRound.add(socket.id);
+      const isFirst = devineState.foundThisRound.size === 1;
+      if (isFirst) {
+        const guesserScore = (devineState.scores.get(socket.id) || 0) + 1;
+        devineState.scores.set(socket.id, guesserScore);
+      }
 
-      io.to('devine-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
-      io.to('output-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
+      io.to('devine-room').emit('devine:correct', {
+        pseudo,
+        word: devineState.currentWord,
+        first: isFirst,
+        score: devineState.scores.get(socket.id) || 0
+      });
+      io.to('output-room').emit('devine:correct', {
+        pseudo,
+        word: devineState.currentWord,
+        first: isFirst
+      });
       osc.sendCorrectGuess(pseudo, devineState.currentWord);
-      osc.sendScore(pseudo, guesserScore);
       broadcastDevineScores();
 
-      // Start next round after a short delay
-      if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
-      setTimeout(() => startDevineRound(), 3000);
+      // Check win condition
+      const targetScore = devineState.settings.targetScore;
+      const guesserScore = devineState.scores.get(socket.id) || 0;
+      if (isFirst && guesserScore >= targetScore) {
+        // Game won!
+        if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
+        devineState.status = 'finished';
+        io.to('devine-room').emit('devine:gameWon', { pseudo, score: guesserScore, targetScore });
+        io.to('output-room').emit('devine:gameWon', { pseudo, score: guesserScore, targetScore });
+        io.to('admin-room').emit('devine:update', { status: 'finished' });
+        console.log(`Devine: ${pseudo} wins with ${guesserScore} points!`);
+        return;
+      }
+
+      // Start next round after a short delay (only first correct guess triggers it)
+      if (isFirst) {
+        if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
+        setTimeout(() => startDevineRound(), 3000);
+      }
     } else if (distance <= 2) {
       // Close
       io.to(socket.id).emit('devine:close', { guess });
@@ -1083,10 +1157,14 @@ io.on('connection', socket => {
 
   socket.on('devine:reset', () => {
     if (devineState.timer) { clearInterval(devineState.timer); devineState.timer = null; }
+    if (devineState.choosingTimer) { clearTimeout(devineState.choosingTimer); devineState.choosingTimer = null; }
     devineState.status = 'stopped';
     devineState.currentDrawer = null;
     devineState.currentWord = null;
+    devineState.wordChoices = [];
     devineState.scores.clear();
+    devineState.foundThisRound.clear();
+    devineState.usedWords.clear();
     devineState.round = 0;
     adminState.games.devine.status = 'stopped';
     io.to('devine-room').emit('devine:reset');
@@ -1246,21 +1324,78 @@ function startTelephoneRound(round) {
   }, 1000);
 }
 
+function pickDevineWords(count) {
+  const available = devineWordsDb.allWords.filter(w => !devineState.usedWords.has(w));
+  // If we've used most words, reset
+  if (available.length < count) {
+    devineState.usedWords.clear();
+    return pickDevineWords(count);
+  }
+  const shuffled = available.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
 function startDevineRound() {
+  if (devineState.status === 'finished') return;
   const players = Array.from(devineState.players.keys());
   if (players.length < 2) return;
 
   devineState.round++;
   const drawerIndex = (devineState.round - 1) % players.length;
   devineState.currentDrawer = players[drawerIndex];
-  devineState.currentWord = devineState.wordList[Math.floor(Math.random() * devineState.wordList.length)];
-  devineState.status = 'playing';
-  adminState.games.devine.status = 'playing';
+  devineState.currentWord = null;
+  devineState.foundThisRound.clear();
+
+  // Pick 3 random words for the drawer to choose from
+  devineState.wordChoices = pickDevineWords(devineState.settings.wordChoiceCount);
+  devineState.status = 'choosingWord';
 
   const drawerPlayer = devineState.players.get(devineState.currentDrawer);
   const drawerPseudo = drawerPlayer ? drawerPlayer.pseudo : '?';
 
-  // Notify drawer
+  // Send word choices to drawer
+  io.to(devineState.currentDrawer).emit('devine:chooseWord', {
+    words: devineState.wordChoices,
+    round: devineState.round,
+    duration: devineState.settings.choosingDuration
+  });
+
+  // Tell guessers to wait
+  players.forEach(id => {
+    if (id !== devineState.currentDrawer) {
+      io.to(id).emit('devine:waiting', {
+        drawer: drawerPseudo,
+        round: devineState.round
+      });
+    }
+  });
+
+  io.to('output-room').emit('devine:roundStart', { drawer: drawerPseudo, round: devineState.round });
+  io.to('admin-room').emit('devine:update', { status: 'choosingWord' });
+
+  // Auto-choose if drawer doesn't pick in time
+  devineState.choosingTimer = setTimeout(() => {
+    devineState.choosingTimer = null;
+    if (devineState.status === 'choosingWord' && devineState.wordChoices.length > 0) {
+      devineState.currentWord = devineState.wordChoices[Math.floor(Math.random() * devineState.wordChoices.length)];
+      devineState.usedWords.add(devineState.currentWord);
+      devineState.foundThisRound.clear();
+      startDevineDrawPhase();
+    }
+  }, devineState.settings.choosingDuration * 1000);
+
+  console.log(`Devine round ${devineState.round}: ${drawerPseudo} choosing from [${devineState.wordChoices.join(', ')}]`);
+}
+
+function startDevineDrawPhase() {
+  devineState.status = 'playing';
+  adminState.games.devine.status = 'playing';
+
+  const players = Array.from(devineState.players.keys());
+  const drawerPlayer = devineState.players.get(devineState.currentDrawer);
+  const drawerPseudo = drawerPlayer ? drawerPlayer.pseudo : '?';
+
+  // Notify drawer to start drawing
   io.to(devineState.currentDrawer).emit('devine:youDraw', {
     word: devineState.currentWord,
     round: devineState.round
@@ -1276,7 +1411,6 @@ function startDevineRound() {
     }
   });
 
-  io.to('output-room').emit('devine:roundStart', { drawer: drawerPseudo, round: devineState.round });
   io.to('admin-room').emit('devine:update', { status: 'playing' });
 
   // Timer
