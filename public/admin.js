@@ -966,6 +966,70 @@ document.addEventListener('keydown', (e) => {
 });
 
 // =============================================
+// OSC CONFIGURATION
+// =============================================
+
+const oscState = {
+  enabled: false,
+  touchdesigner: { enabled: false, host: '127.0.0.1', port: 7000 },
+  ableton: { enabled: false, host: '127.0.0.1', port: 9000 }
+};
+
+function updateOscUI() {
+  document.getElementById('osc-enabled').checked = oscState.enabled;
+  document.getElementById('osc-td-enabled').checked = oscState.touchdesigner.enabled;
+  document.getElementById('osc-td-host').value = oscState.touchdesigner.host;
+  document.getElementById('osc-td-port').value = oscState.touchdesigner.port;
+  document.getElementById('osc-ableton-enabled').checked = oscState.ableton.enabled;
+  document.getElementById('osc-ableton-host').value = oscState.ableton.host;
+  document.getElementById('osc-ableton-port').value = oscState.ableton.port;
+
+  const statusEl = document.getElementById('osc-status');
+  if (oscState.enabled) {
+    const targets = [];
+    if (oscState.touchdesigner.enabled) targets.push('TD');
+    if (oscState.ableton.enabled) targets.push('ABL');
+    statusEl.className = 'game-card-status playing';
+    statusEl.textContent = targets.length ? targets.join('+') : 'ON';
+  } else {
+    statusEl.className = 'game-card-status stopped';
+    statusEl.textContent = 'OFF';
+  }
+}
+
+socket.on('osc:config', (config) => {
+  Object.assign(oscState, config);
+  updateOscUI();
+  console.log('[Admin] OSC config received', config);
+});
+
+document.getElementById('osc-apply').addEventListener('click', () => {
+  const config = {
+    enabled: document.getElementById('osc-enabled').checked,
+    touchdesigner: {
+      enabled: document.getElementById('osc-td-enabled').checked,
+      host: document.getElementById('osc-td-host').value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('osc-td-port').value, 10) || 7000
+    },
+    ableton: {
+      enabled: document.getElementById('osc-ableton-enabled').checked,
+      host: document.getElementById('osc-ableton-host').value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('osc-ableton-port').value, 10) || 9000
+    }
+  };
+
+  connectionManager.emit('osc:configure', config);
+  Object.assign(oscState, config);
+  updateOscUI();
+  showAdminNotification('OSC ' + (config.enabled ? 'active' : 'desactive'));
+});
+
+// Quick toggle
+document.getElementById('osc-enabled').addEventListener('change', () => {
+  // Just update the UI, actual config is sent on Apply
+});
+
+// =============================================
 // INITIALIZATION
 // =============================================
 

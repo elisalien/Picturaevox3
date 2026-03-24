@@ -729,6 +729,58 @@
         </div>
       </div>
 
+      <!-- OSC -->
+      <div class="panel-section">
+        <div class="panel-section-title">OSC (TouchDesigner / Ableton)</div>
+
+        <div class="game-card" id="osc-card">
+          <div class="game-card-header">
+            <span class="game-card-name">OSC Bridge</span>
+            <span class="game-card-status stopped" id="osc-status">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="osc-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- TouchDesigner -->
+        <div class="game-card" style="margin-top: 6px;">
+          <div class="game-card-header">
+            <span class="game-card-name">TouchDesigner</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="osc-td-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="theme-input-group" style="margin-top: 4px;">
+            <input type="text" id="osc-td-host" placeholder="Host" value="127.0.0.1" style="flex:2;" />
+            <input type="number" id="osc-td-port" placeholder="Port" value="7000" style="flex:1;" />
+          </div>
+        </div>
+
+        <!-- Ableton -->
+        <div class="game-card" style="margin-top: 6px;">
+          <div class="game-card-header">
+            <span class="game-card-name">Ableton Live</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="osc-ableton-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="theme-input-group" style="margin-top: 4px;">
+            <input type="text" id="osc-ableton-host" placeholder="Host" value="127.0.0.1" style="flex:2;" />
+            <input type="number" id="osc-ableton-port" placeholder="Port" value="9000" style="flex:1;" />
+          </div>
+        </div>
+
+        <div style="margin-top: 8px;">
+          <button class="btn-sm btn-accent" id="osc-apply" style="width: 100%;">Appliquer OSC</button>
+        </div>
+      </div>
+
     </div>
 
     <!-- SIDEBAR FOOTER -->
