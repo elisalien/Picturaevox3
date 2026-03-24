@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Output — Picturaevox 3.5</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      background: #000;
+      overflow: hidden;
+    }
+
+    /* Canvas layer (shared drawing) */
+    #canvas-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* Overlay layers for game results */
+    .output-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(10px);
+      overflow-y: auto;
+    }
+    .output-overlay.visible {
+      display: flex;
+    }
+
+    .output-content {
+      max-width: 900px;
+      width: 95%;
+      padding: 40px 20px;
+      text-align: center;
+    }
+
+    .output-title {
+      color: #fff;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+
+    /* Cadavre Exquis results */
+    .cadavre-results {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .cadavre-team {
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      width: 200px;
+    }
+    .cadavre-team h3 {
+      color: #6b5bff;
+      font-size: 14px;
+      margin: 0 0 10px;
+    }
+    .cadavre-team img {
+      width: 100%;
+      display: block;
+      border-radius: 4px;
+    }
+    .cadavre-team .member-list {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #888;
+    }
+
+    /* Telephone chains */
+    .telephone-chains {
+      text-align: left;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .chain-card {
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .chain-card h3 {
+      color: #6b5bff;
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+    .chain-step {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .chain-step:last-child { border-bottom: none; }
+    .chain-step .step-type {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .chain-step .step-author {
+      color: #b8adff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .chain-step .step-content {
+      color: #eee;
+      font-size: 16px;
+      margin-top: 4px;
+    }
+    .chain-step img {
+      max-width: 300px;
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+
+    /* Devine scoreboard */
+    .devine-live {
+      text-align: center;
+    }
+    .devine-canvas-output {
+      margin: 0 auto 20px;
+      border: 2px solid rgba(107, 91, 255, 0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 500px;
+      background: #000;
+    }
+    .devine-canvas-output canvas {
+      width: 100%;
+      display: block;
+    }
+    .devine-info {
+      color: #fff;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    .devine-scores {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .devine-score-tag {
+      background: rgba(107, 91, 255, 0.15);
+      color: #b8adff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .devine-score-tag .score-val {
+      font-weight: 700;
+      color: #6b5bff;
+    }
+    .devine-correct-flash {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 28px;
+      font-weight: 700;
+      color: #69F0AE;
+      z-index: 100;
+      animation: adminNotifPop 1.5s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes adminNotifPop {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+      80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    /* Theme gallery */
+    .theme-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .theme-item {
+      background: rgba(18, 18, 24, 0.92);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: transform 0.2s;
+    }
+    .theme-item:hover {
+      transform: scale(1.02);
+    }
+    .theme-item img {
+      width: 100%;
+      display: block;
+    }
+    .theme-item .artist-name {
+      padding: 10px;
+      color: #b8adff;
+      font-size: 13px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* Status indicator */
+    .output-status {
+      position: fixed;
+      bottom: 14px;
+      right: 14px;
+      padding: 6px 14px;
+      background: rgba(18, 18, 24, 0.85);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #666;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas layer for shared drawing -->
+  <div id="canvas-layer">
+    <div id="canvas-container"></div>
+  </div>
+
+  <!-- Cadavre Exquis overlay -->
+  <div class="output-overlay" id="overlay-cadavre">
+    <div class="output-content">
+      <div class="output-title">Cadavre Exquis</div>
+      <div class="cadavre-results" id="cadavre-results"></div>
+    </div>
+  </div>
+
+  <!-- Telephone overlay -->
+  <div class="output-overlay" id="overlay-telephone">
+    <div class="output-content">
+      <div class="output-title">Telephone Gribouillis</div>
+      <div class="telephone-chains" id="telephone-results"></div>
+    </div>
+  </div>
+
+  <!-- Devine overlay -->
+  <div class="output-overlay" id="overlay-devine">
+    <div class="output-content devine-live">
+      <div class="output-title" id="devine-output-title">Dessine-Devine</div>
+      <div class="devine-info" id="devine-info"></div>
+      <div class="devine-canvas-output" id="devine-canvas-output"></div>
+      <div class="devine-scores" id="devine-scores-output"></div>
+    </div>
+  </div>
+
+  <!-- Theme overlay -->
+  <div class="output-overlay" id="overlay-theme">
+    <div class="output-content">
+      <div class="output-title" id="theme-output-title">Le Grand Theme</div>
+      <div class="theme-gallery" id="theme-results"></div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="output-status" id="output-status">OUTPUT</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/konva@9.2.0/konva.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="connectionManager.js"></script>
+  <script src="brushManager.js"></script>
+  <script>
+    // === OUTPUT PAGE - PROJECTION ===
+    const socket = io({
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10,
+      timeout: 10000,
+      transports: ['websocket', 'polling']
+    });
+
+    // === KONVA CANVAS (shared drawing) ===
+    const stage = new Konva.Stage({
+      container: 'canvas-container',
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    const layer = new Konva.Layer();
+    stage.add(layer);
+
+    const connectionManager = new ConnectionManager(socket);
+    const brushManager = new BrushManager(layer, socket);
+
+    window.addEventListener('resize', () => {
+      stage.width(window.innerWidth);
+      stage.height(window.innerHeight);
+      stage.batchDraw();
+    });
+
+    // === LAYOUT STATE ===
+    let currentLayout = {
+      canvas: true,
+      cadavre: false,
+      telephone: false,
+      devine: false,
+      theme: false
+    };
+
+    function applyLayout() {
+      const canvasLayer = document.getElementById('canvas-layer');
+      canvasLayer.style.display = currentLayout.canvas ? '' : 'none';
+
+      ['cadavre', 'telephone', 'devine', 'theme'].forEach(mode => {
+        const overlay = document.getElementById('overlay-' + mode);
+        overlay.classList.toggle('visible', !!currentLayout[mode]);
+      });
+    }
+
+    // === SOCKET: CONNECT ===
+    socket.on('connect', () => {
+      socket.emit('output:join');
+    });
+
+    socket.on('output:layout', (layout) => {
+      currentLayout = { ...currentLayout, ...layout };
+      applyLayout();
+    });
+
+    // === CANVAS EVENTS ===
+    socket.on('initShapes', (shapes) => {
+      shapes.forEach(data => {
+        if (data.type === 'permanentTrace') {
+          let element;
+          switch (data.shapeType) {
+            case 'Star':    element = new Konva.Star(data.attrs); break;
+            case 'Circle':  element = new Konva.Circle(data.attrs); break;
+            case 'Line':    element = new Konva.Line(data.attrs); break;
+            case 'Ellipse': element = new Konva.Ellipse(data.attrs); break;
+          }
+          if (element) {
+            element.id(data.id);
+            element.isPermanentTrace = true;
+            layer.add(element);
+          }
+        } else {
+          layer.add(new Konva.Line({
+            id: data.id, points: data.points, stroke: data.stroke,
+            strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+            lineCap: 'round', lineJoin: 'round'
+          }));
+        }
+      });
+      layer.draw();
+    });
+
+    socket.on('drawing', (data) => {
+      let shape = layer.findOne('#' + data.id);
+      if (shape) { shape.points(data.points); shape.strokeWidth(data.strokeWidth); }
+      else {
+        layer.add(new Konva.Line({
+          id: data.id, points: data.points, stroke: data.stroke,
+          strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+          lineCap: 'round', lineJoin: 'round'
+        }));
+      }
+      layer.batchDraw();
+    });
+
+    socket.on('draw', (data) => {
+      let shape = layer.findOne('#' + data.id);
+      if (shape) {
+        shape.points(data.points); shape.stroke(data.stroke);
+        shape.strokeWidth(data.strokeWidth); shape.globalCompositeOperation(data.globalCompositeOperation);
+      } else {
+        layer.add(new Konva.Line({
+          id: data.id, points: data.points, stroke: data.stroke,
+          strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+          lineCap: 'round', lineJoin: 'round'
+        }));
+      }
+      layer.draw();
+    });
+
+    socket.on('brushEffect', (data) => brushManager.createNetworkEffect(data));
+    socket.on('cleanupUserEffects', (data) => brushManager.cleanupUserEffects(data.socketId));
+    socket.on('texture', (data) => {
+      const particleCount = 8;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * data.size * 1.4;
+        const dotSize = 1.2 + Math.random() * (data.size / 2.5);
+        const alpha = 0.35 + Math.random() * 0.35;
+        if (Math.random() < 0.7) {
+          const lineLength = 1 + Math.random() * 2.5;
+          const lineAngle = Math.random() * Math.PI * 2;
+          layer.add(new Konva.Line({
+            points: [data.x + Math.cos(angle)*distance, data.y + Math.sin(angle)*distance,
+                     data.x + Math.cos(angle)*distance + Math.cos(lineAngle)*lineLength,
+                     data.y + Math.sin(angle)*distance + Math.sin(lineAngle)*lineLength],
+            stroke: data.color, strokeWidth: dotSize * 0.8, opacity: alpha,
+            lineCap: 'round', lineJoin: 'round', listening: false
+          }));
+        } else {
+          layer.add(new Konva.Circle({
+            x: data.x + Math.cos(angle)*distance, y: data.y + Math.sin(angle)*distance,
+            radius: dotSize * 0.6, fill: data.color, opacity: alpha * 0.9, listening: false
+          }));
+        }
+      }
+      layer.batchDraw();
+    });
+
+    socket.on('deleteShape', ({ id }) => {
+      const s = layer.findOne('#' + id);
+      if (s) { s.destroy(); layer.draw(); }
+    });
+    socket.on('clearCanvas', () => {
+      layer.destroyChildren(); brushManager.clearEverything(); layer.draw();
+    });
+    socket.on('restoreShapes', (shapes) => {
+      layer.destroyChildren(); brushManager.clearEverything();
+      shapes.forEach(data => {
+        if (data.type === 'permanentTrace') {
+          let el;
+          switch (data.shapeType) {
+            case 'Star': el = new Konva.Star(data.attrs); break;
+            case 'Circle': el = new Konva.Circle(data.attrs); break;
+            case 'Line': el = new Konva.Line(data.attrs); break;
+            case 'Ellipse': el = new Konva.Ellipse(data.attrs); break;
+          }
+          if (el) { el.id(data.id); el.isPermanentTrace = true; layer.add(el); }
+        } else {
+          layer.add(new Konva.Line({
+            id: data.id, points: data.points, stroke: data.stroke,
+            strokeWidth: data.strokeWidth, globalCompositeOperation: data.globalCompositeOperation,
+            lineCap: 'round', lineJoin: 'round'
+          }));
+        }
+      });
+      layer.draw();
+    });
+    socket.on('adminResetBrushEffects', () => {
+      brushManager.clearAllEffects(); layer.batchDraw();
+    });
+
+    // === CADAVRE EXQUIS RESULTS ===
+    socket.on('game:reveal', (results) => {
+      const container = document.getElementById('cadavre-results');
+      container.innerHTML = '';
+
+      results.forEach(team => {
+        const div = document.createElement('div');
+        div.className = 'cadavre-team';
+        let html = `<h3>Equipe ${team.teamId + 1}</h3>`;
+        if (team.head) html += `<img src="${team.head}" />`;
+        if (team.torso) html += `<img src="${team.torso}" />`;
+        if (team.legs) html += `<img src="${team.legs}" />`;
+        html += `<div class="member-list">${team.members.map(m => m.pseudo).join(', ')}</div>`;
+        div.innerHTML = html;
+        container.appendChild(div);
+      });
+
+      currentLayout.cadavre = true;
+      applyLayout();
+    });
+
+    // === TELEPHONE RESULTS ===
+    socket.on('telephone:reveal', (chains) => {
+      const container = document.getElementById('telephone-results');
+      container.innerHTML = '';
+
+      chains.forEach((chain, i) => {
+        let html = `<div class="chain-card"><h3>Chaine ${i + 1}</h3>`;
+        chain.forEach(step => {
+          html += `<div class="chain-step">`;
+          html += `<span class="step-type">${step.type === 'word' ? 'Texte' : 'Dessin'}</span> `;
+          html += `<span class="step-author">${step.author || '?'}</span>`;
+          if (step.type === 'drawing' && step.content) {
+            html += `<br><img src="${step.content}" />`;
+          } else {
+            html += `<div class="step-content">${step.content || '...'}</div>`;
+          }
+          html += `</div>`;
+        });
+        html += `</div>`;
+        container.innerHTML += html;
+      });
+
+      currentLayout.telephone = true;
+      applyLayout();
+    });
+
+    // === DEVINE LIVE ===
+    let devineOutputCanvas = null;
+
+    socket.on('devine:roundStart', ({ drawer, round }) => {
+      document.getElementById('devine-info').textContent = drawer + ' dessine... (manche ' + round + ')';
+
+      // Create output canvas for live drawing
+      if (devineOutputCanvas) devineOutputCanvas.destroy();
+      document.getElementById('devine-canvas-output').innerHTML = '';
+
+      const container = document.getElementById('devine-canvas-output');
+      const w = Math.min(container.clientWidth || 500, 500);
+      const h = Math.round(w * 0.75);
+      const outputStage = new Konva.Stage({ container: 'devine-canvas-output', width: w, height: h });
+      const outputLayer = new Konva.Layer();
+      outputStage.add(outputLayer);
+      devineOutputCanvas = { stage: outputStage, layer: outputLayer, destroy() { outputStage.destroy(); } };
+    });
+
+    socket.on('devine:drawing', (data) => {
+      if (!devineOutputCanvas) return;
+      const line = new Konva.Line({
+        points: data.points, stroke: '#FFFFFF',
+        strokeWidth: data.strokeWidth || 4,
+        globalCompositeOperation: data.globalCompositeOperation || 'source-over',
+        lineCap: 'round', lineJoin: 'round', listening: false
+      });
+      devineOutputCanvas.layer.add(line);
+      devineOutputCanvas.layer.batchDraw();
+    });
+
+    socket.on('devine:correct', ({ pseudo, word }) => {
+      const flash = document.createElement('div');
+      flash.className = 'devine-correct-flash';
+      flash.textContent = pseudo + ' a trouve : ' + word + ' !';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 2000);
+    });
+
+    socket.on('devine:scores', (scores) => {
+      const container = document.getElementById('devine-scores-output');
+      if (!container) return;
+      const sorted = Object.values(scores).sort((a, b) => b.score - a.score);
+      container.innerHTML = sorted.map(s =>
+        `<span class="devine-score-tag">${s.pseudo} <span class="score-val">${s.score}</span></span>`
+      ).join('');
+    });
+
+    socket.on('devine:timeUp', ({ word }) => {
+      document.getElementById('devine-info').textContent = 'Temps ecoule ! Le mot etait : ' + word;
+    });
+
+    // === THEME RESULTS ===
+    socket.on('theme:started', ({ theme }) => {
+      document.getElementById('theme-output-title').textContent = 'Le Grand Theme : ' + theme;
+    });
+
+    socket.on('theme:reveal', ({ theme, drawings }) => {
+      document.getElementById('theme-output-title').textContent = 'Le Grand Theme : ' + theme;
+      const container = document.getElementById('theme-results');
+      container.innerHTML = '';
+
+      drawings.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'theme-item';
+        item.innerHTML = `<img src="${d.imageData}" /><div class="artist-name">${d.pseudo || '?'}</div>`;
+        container.appendChild(item);
+      });
+
+      currentLayout.theme = true;
+      applyLayout();
+    });
+
+    // Initial layout
+    applyLayout();
+    console.log('Output page loaded');
+  </script>
+</body>
+</html>
