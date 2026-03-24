@@ -1210,7 +1210,7 @@ document.getElementById('qr-overlay').addEventListener('click', () => {
 });
 
 // Download QR as PNG
-document.getElementById('qr-download').addEventListener('click', () => {
+document.getElementById('qr-download').addEventListener('click', async () => {
   const ip = document.getElementById('qr-server-ip').value.trim();
   const port = document.getElementById('qr-server-port').value.trim() || '3000';
   const page = document.getElementById('qr-target-page').value;
@@ -1235,49 +1235,48 @@ document.getElementById('qr-download').addEventListener('click', () => {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
 
-  const generateAndDraw = async () => {
-    let xOffset = 20;
+  let xOffset = 20;
 
-    if (hasWifi) {
-      // Wi-Fi QR
-      const wifiCanvas = document.createElement('canvas');
-      const wifiString = generateWifiString(ssid, password, security);
-      await QRCode.toCanvas(wifiCanvas, wifiString, { ...getQROptions(exportSize), width: exportSize });
-      ctx.drawImage(wifiCanvas, xOffset, 10);
+  if (hasWifi) {
+    // Wi-Fi QR
+    const wifiCanvas = document.createElement('canvas');
+    const wifiString = generateWifiString(ssid, password, security);
+    await QRCode.toCanvas(wifiCanvas, wifiString, { ...getQROptions(exportSize), width: exportSize });
+    ctx.drawImage(wifiCanvas, 0, 0, wifiCanvas.width, wifiCanvas.height, xOffset, 10, exportSize, exportSize);
 
-      ctx.fillStyle = '#888';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('1. Wi-Fi: ' + ssid, xOffset + exportSize / 2, exportSize + 35);
-
-      xOffset += exportSize + 40;
-    }
-
-    // URL QR
-    const urlCanvas = document.createElement('canvas');
-    await QRCode.toCanvas(urlCanvas, url, { ...getQROptions(exportSize), width: exportSize });
-    ctx.drawImage(urlCanvas, xOffset, 10);
-
-    ctx.fillStyle = '#00d9ff';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText((hasWifi ? '2. ' : '') + url, xOffset + exportSize / 2, exportSize + 35);
+    ctx.fillText('1. Wi-Fi: ' + ssid, xOffset + exportSize / 2, exportSize + 35);
 
-    // Title
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('PICTURAEVOX', combinedCanvas.width / 2, exportSize + 70);
+    xOffset += exportSize + 40;
+  }
 
-    // Download
-    const link = document.createElement('a');
-    link.download = 'picturaevox-qrcodes.png';
-    link.href = combinedCanvas.toDataURL('image/png');
-    link.click();
-    showAdminNotification('QR codes telecharges');
-  };
+  // URL QR
+  const urlCanvas = document.createElement('canvas');
+  await QRCode.toCanvas(urlCanvas, url, { ...getQROptions(exportSize), width: exportSize });
+  ctx.drawImage(urlCanvas, 0, 0, urlCanvas.width, urlCanvas.height, xOffset, 10, exportSize, exportSize);
 
-  generateAndDraw();
+  ctx.fillStyle = '#00d9ff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText((hasWifi ? '2. ' : '') + url, xOffset + exportSize / 2, exportSize + 35);
+
+  // Title
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('PICTURAEVOX', combinedCanvas.width / 2, exportSize + 75);
+
+  // Download - must be in DOM for some browsers
+  const link = document.createElement('a');
+  link.download = 'picturaevox-qrcodes.png';
+  link.href = combinedCanvas.toDataURL('image/png');
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showAdminNotification('QR codes telecharges');
 });
 
 // =============================================
