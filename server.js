@@ -1464,5 +1464,21 @@ http.listen(PORT, '0.0.0.0', async () => {
     await loadShapesFromRedis();
   }
 
-  console.log(`🎨 Picturaevox3 ready! ${Object.keys(shapes).length} shapes loaded.`);
+  console.log(`Picturaevox3 ready! ${Object.keys(shapes).length} shapes loaded.`);
+  console.log(`[OSC] ${osc.available && !osc.isCloud ? 'Available (local mode)' : 'Unavailable (cloud/missing dep)'}`);
 });
+
+// Graceful shutdown
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received — shutting down...`);
+  osc.destroy();
+  http.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+  // Force exit after 5s
+  setTimeout(() => process.exit(1), 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

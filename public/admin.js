@@ -1000,6 +1000,26 @@ function updateOscUI() {
 socket.on('osc:config', (config) => {
   Object.assign(oscState, config);
   updateOscUI();
+
+  // Show warning if OSC unavailable (cloud deployment)
+  const oscCard = document.getElementById('osc-card');
+  const applyBtn = document.getElementById('osc-apply');
+  if (config.available === false) {
+    oscCard.style.opacity = '0.5';
+    const warning = document.createElement('div');
+    warning.style.cssText = 'font-size:10px;color:#FF9800;margin-top:6px;';
+    warning.textContent = config.isCloud
+      ? 'OSC indisponible (deploiement cloud — UDP non supporte)'
+      : 'OSC indisponible (module node-osc manquant)';
+    warning.id = 'osc-warning';
+    if (!document.getElementById('osc-warning')) {
+      oscCard.appendChild(warning);
+    }
+    applyBtn.disabled = true;
+    applyBtn.style.opacity = '0.4';
+    document.getElementById('osc-enabled').disabled = true;
+  }
+
   console.log('[Admin] OSC config received', config);
 });
 

@@ -1,11 +1,30 @@
 // oscManager.js — Picturaevox 3.5 — OSC bridge to TouchDesigner & Ableton
 // Sends drawing data + game events via UDP OSC
+// NOTE: OSC uses UDP — only works when server runs locally (not on Railway/Render/Heroku)
 
-const { Client } = require('node-osc');
+let Client;
+try {
+  Client = require('node-osc').Client;
+} catch (err) {
+  // node-osc not available — OSC will be disabled
+  Client = null;
+}
 
 class OSCManager {
   constructor() {
     this.enabled = false;
+    this.available = !!Client;
+    this.isCloud = !!(process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_ENVIRONMENT ||
+                      process.env.RENDER_EXTERNAL_URL || process.env.HEROKU_APP_NAME ||
+                      process.env.FLY_APP_NAME);
+
+    if (this.isCloud) {
+      console.log('[OSC] Cloud environment detected — OSC disabled (UDP not supported on PaaS)');
+    }
+    if (!this.available) {
+      console.log('[OSC] node-osc not installed — OSC unavailable');
+    }
+
     this.targets = {
       touchdesigner: { enabled: false, host: '127.0.0.1', port: 7000, client: null },
       ableton:       { enabled: false, host: '127.0.0.1', port: 9000, client: null }
@@ -24,6 +43,19 @@ class OSCManager {
 
   configure(config) {
     if (!config) return;
+
+    // Block OSC on cloud platforms
+    if (this.isCloud) {
+      this.enabled = false;
+      console.log('[OSC] Ignored config — cloud environment (UDP not available)');
+      return;
+    }
+
+    if (!this.available) {
+      this.enabled = false;
+      console.log('[OSC] Ignored config — node-osc not installed');
+      return;
+    }
 
     if (typeof config.enabled === 'boolean') {
       this.enabled = config.enabled;
@@ -48,6 +80,8 @@ class OSCManager {
   getConfig() {
     return {
       enabled: this.enabled,
+      available: this.available && !this.isCloud,
+      isCloud: this.isCloud,
       touchdesigner: {
         enabled: this.targets.touchdesigner.enabled,
         host: this.targets.touchdesigner.host,
@@ -72,7 +106,7 @@ class OSCManager {
       t.client = null;
     }
 
-    if (t.enabled && this.enabled) {
+    if (t.enabled && this.enabled && Client && !this.isCloud) {
       try {
         t.client = new Client(t.host, t.port);
         console.log(`[OSC] ${targetName} connected → ${t.host}:${t.port}`);
