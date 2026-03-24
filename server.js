@@ -6,6 +6,7 @@ const app = express();
 const path = require('path');
 const http = require('http').Server(app);
 const Redis = require('ioredis');
+const OSCManager = require('./oscManager');
 
 // Configuration CORS sécurisée
 let allowedOrigins = process.env.ALLOWED_ORIGINS ?
@@ -161,6 +162,26 @@ const themeState = {
   settings: { drawDuration: 120 }
 };
 
+// === OSC MANAGER ===
+const osc = new OSCManager();
+
+// Auto-configure from env if available
+if (process.env.OSC_ENABLED === 'true') {
+  osc.configure({
+    enabled: true,
+    touchdesigner: {
+      enabled: process.env.OSC_TD_ENABLED !== 'false',
+      host: process.env.OSC_TD_HOST || '127.0.0.1',
+      port: parseInt(process.env.OSC_TD_PORT || '7000', 10)
+    },
+    ableton: {
+      enabled: process.env.OSC_ABLETON_ENABLED !== 'false',
+      host: process.env.OSC_ABLETON_HOST || '127.0.0.1',
+      port: parseInt(process.env.OSC_ABLETON_PORT || '9000', 10)
+    }
+  });
+}
+
 function getGamePlayerList() {
   return Array.from(gameState.players.values()).map(p => ({ pseudo: p.pseudo, socketId: p.socketId }));
 }
@@ -194,7 +215,9 @@ function finalizeGame() {
   io.to('gamemaster-room').emit('game:galleryUpdate', gameGallery);
   io.to('exquiscadavre-room').emit('game:reveal', results);
 
-  console.log(`🎭 Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings, gallery: ${gameGallery.length} rounds`);
+  osc.sendGameReveal('cadavre');
+  osc.sendGameState('cadavre', 'revealing');
+  console.log(`Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings, gallery: ${gameGallery.length} rounds`);
 }
 
 function resetGame() {
@@ -408,7 +431,8 @@ app.get('/health', (req, res) => {
 
 io.on('connection', socket => {
   const connectedClients = io.engine.clientsCount;
-  console.log(`👤 USER CONNECTED: ${socket.id} (Total: ${connectedClients} clients)`);
+  console.log(`USER CONNECTED: ${socket.id} (Total: ${connectedClients} clients)`);
+  osc.sendPlayerCount(connectedClients);
 
   // Send existing shapes to this client (INCLUDING permanent traces)
   socket.emit('initShapes', Object.values(shapes));
@@ -423,6 +447,12 @@ io.on('connection', socket => {
   // Broadcast streaming drawing data
   socket.on('drawing', data => {
     socket.broadcast.emit('drawing', data);
+    // OSC: send live brush position
+    if (data.points && data.points.length >= 2) {
+      const lastX = data.points[data.points.length - 2];
+      const lastY = data.points[data.points.length - 1];
+      osc.sendDrawPos(lastX, lastY, data.stroke, data.strokeWidth, 1.0);
+    }
   });
 
   // Broadcast texture brush data
@@ -430,6 +460,7 @@ io.on('connection', socket => {
     if (!socket.lastTextureTime || Date.now() - socket.lastTextureTime > 100) {
       socket.broadcast.emit('texture', data);
       socket.lastTextureTime = Date.now();
+      osc.sendTexture(data.x, data.y, data.color, data.size);
     }
   });
 
@@ -463,6 +494,7 @@ io.on('connection', socket => {
         serverTimestamp: now
       });
       socket.lastBrushEffect = now;
+      osc.sendBrushEffect(data.type, data.x, data.y, data.color, data.size);
     }
   });
 
@@ -522,6 +554,7 @@ io.on('connection', socket => {
     await saveShapeToRedis(shapeWithTimestamp);
 
     socket.broadcast.emit('draw', optimizedData);
+    osc.sendDrawEnd(data.id);
   });
 
   // Shape deletion (incluant tracés permanents)
@@ -578,6 +611,7 @@ io.on('connection', socket => {
 
     // ✅ Envoyer à TOUS les clients (y compris admin)
     io.emit('clearCanvas');
+    osc.sendCanvasClear();
 
     const shapesAfter = Object.keys(shapes).length;
     console.log(`🧼 CLEAR COMPLETE:`);
@@ -641,7 +675,8 @@ io.on('connection', socket => {
     io.to('game-room').emit('game:playerList', playerList);
     io.to('gamemaster-room').emit('game:playerList', playerList);
     io.to('gamemaster-room').emit('game:teamCount', getGameTeamCount(playerList.length));
-    console.log(`🎮 Player joined game: ${pseudo} (${gameState.players.size} players)`);
+    osc.sendPlayerJoined('cadavre', pseudo, gameState.players.size);
+    console.log(`Player joined game: ${pseudo} (${gameState.players.size} players)`);
   });
 
   socket.on('gamemaster:join', () => {
@@ -734,6 +769,7 @@ io.on('connection', socket => {
       gameState.timerValue--;
       io.to('game-room').emit('game:timer', gameState.timerValue);
       io.to('gamemaster-room').emit('game:timer', gameState.timerValue);
+      osc.sendTimer('cadavre', gameState.timerValue, gameState.settings.turnDuration);
 
       if (gameState.timerValue <= 0) {
         clearInterval(gameState.timer);
@@ -747,14 +783,17 @@ io.on('connection', socket => {
       }
     }, 1000);
 
-    console.log(`🎮 Game started: ${teams.length} teams, ${players.length} players`);
+    osc.sendGameStart('cadavre');
+    osc.sendGameState('cadavre', 'playing');
+    console.log(`Game started: ${teams.length} teams, ${players.length} players`);
   });
 
   socket.on('game:submitDrawing', ({ imageData, role, teamId }) => {
     const key = `${teamId}_${role}`;
     if (gameState.drawings.has(key)) return; // Already submitted
     gameState.drawings.set(key, imageData);
-    console.log(`🎨 Drawing received: team ${teamId}, ${role} (${gameState.drawings.size}/${gameState.teams.length * 3})`);
+    osc.sendDrawingSubmitted('cadavre', role);
+    console.log(`Drawing received: team ${teamId}, ${role} (${gameState.drawings.size}/${gameState.teams.length * 3})`);
 
     // Check if all drawings collected
     if (gameState.drawings.size >= gameState.teams.length * 3) {
@@ -775,6 +814,7 @@ io.on('connection', socket => {
     io.to('game-room').emit('game:reset');
     io.to('gamemaster-room').emit('game:reset');
     io.to('exquiscadavre-room').emit('game:reset');
+    osc.sendReset('cadavre');
   });
 
   socket.on('game:clearGallery', () => {
@@ -794,7 +834,15 @@ io.on('connection', socket => {
       outputLayout: adminState.outputLayout,
       connectedPlayers
     });
+    // Send current OSC config
+    socket.emit('osc:config', osc.getConfig());
     console.log('Admin panel connected');
+  });
+
+  // === OSC CONFIG EVENTS ===
+  socket.on('osc:configure', (config) => {
+    osc.configure(config);
+    io.to('admin-room').emit('osc:config', osc.getConfig());
   });
 
   socket.on('admin:enableGame', ({ game, enabled }) => {
@@ -832,6 +880,7 @@ io.on('connection', socket => {
     themeState.players.clear();
     themeState.drawings.clear();
     io.to('admin-room').emit('admin:gamesUpdate', adminState.games);
+    osc.sendFullReset();
     console.log('Admin: full reset');
   });
 
@@ -902,6 +951,8 @@ io.on('connection', socket => {
       }
     }, 1000);
 
+    osc.sendGameStart('telephone');
+    osc.sendGameState('telephone', 'playing');
     console.log(`Telephone started: ${players.length} players`);
   });
 
@@ -950,6 +1001,7 @@ io.on('connection', socket => {
     adminState.games.telephone.status = 'stopped';
     io.to('telephone-room').emit('telephone:reset');
     io.to('admin-room').emit('telephone:update', { status: 'stopped' });
+    osc.sendReset('telephone');
     console.log('Telephone reset');
   });
 
@@ -1012,6 +1064,8 @@ io.on('connection', socket => {
 
       io.to('devine-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
       io.to('output-room').emit('devine:correct', { pseudo, word: devineState.currentWord });
+      osc.sendCorrectGuess(pseudo, devineState.currentWord);
+      osc.sendScore(pseudo, guesserScore);
       broadcastDevineScores();
 
       // Start next round after a short delay
@@ -1037,6 +1091,7 @@ io.on('connection', socket => {
     adminState.games.devine.status = 'stopped';
     io.to('devine-room').emit('devine:reset');
     io.to('admin-room').emit('devine:update', { status: 'stopped' });
+    osc.sendReset('devine');
     console.log('Devine reset');
   });
 
@@ -1082,6 +1137,9 @@ io.on('connection', socket => {
       }
     }, 1000);
 
+    osc.sendGameStart('theme');
+    osc.sendGameState('theme', 'playing');
+    osc.sendTheme(themeState.currentTheme);
     console.log(`Theme started: "${themeState.currentTheme}" (${themeState.players.size} players)`);
   });
 
@@ -1105,6 +1163,7 @@ io.on('connection', socket => {
     adminState.games.theme.status = 'stopped';
     io.to('theme-room').emit('theme:reset');
     io.to('admin-room').emit('theme:update', { status: 'stopped' });
+    osc.sendReset('theme');
     console.log('Theme reset');
   });
 
@@ -1236,6 +1295,7 @@ function startDevineRound() {
     }
   }, 1000);
 
+  osc.sendGameState('devine', 'playing');
   console.log(`Devine round ${devineState.round}: ${drawerPseudo} draws "${devineState.currentWord}"`);
 }
 
@@ -1263,6 +1323,8 @@ function revealThemeDrawings() {
   io.to('output-room').emit('theme:reveal', { theme: themeState.currentTheme, drawings: results });
   io.to('admin-room').emit('theme:update', { status: 'revealing' });
 
+  osc.sendGameReveal('theme');
+  osc.sendGameState('theme', 'revealing');
   console.log(`Theme revealed: ${results.length} drawings for "${themeState.currentTheme}"`);
 }
 
@@ -1402,5 +1464,21 @@ http.listen(PORT, '0.0.0.0', async () => {
     await loadShapesFromRedis();
   }
 
-  console.log(`🎨 Picturaevox3 ready! ${Object.keys(shapes).length} shapes loaded.`);
+  console.log(`Picturaevox3 ready! ${Object.keys(shapes).length} shapes loaded.`);
+  console.log(`[OSC] ${osc.available && !osc.isCloud ? 'Available (local mode)' : 'Unavailable (cloud/missing dep)'}`);
 });
+
+// Graceful shutdown
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received — shutting down...`);
+  osc.destroy();
+  http.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+  // Force exit after 5s
+  setTimeout(() => process.exit(1), 5000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

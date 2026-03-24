@@ -966,6 +966,321 @@ document.addEventListener('keydown', (e) => {
 });
 
 // =============================================
+// OSC CONFIGURATION
+// =============================================
+
+const oscState = {
+  enabled: false,
+  touchdesigner: { enabled: false, host: '127.0.0.1', port: 7000 },
+  ableton: { enabled: false, host: '127.0.0.1', port: 9000 }
+};
+
+function updateOscUI() {
+  document.getElementById('osc-enabled').checked = oscState.enabled;
+  document.getElementById('osc-td-enabled').checked = oscState.touchdesigner.enabled;
+  document.getElementById('osc-td-host').value = oscState.touchdesigner.host;
+  document.getElementById('osc-td-port').value = oscState.touchdesigner.port;
+  document.getElementById('osc-ableton-enabled').checked = oscState.ableton.enabled;
+  document.getElementById('osc-ableton-host').value = oscState.ableton.host;
+  document.getElementById('osc-ableton-port').value = oscState.ableton.port;
+
+  const statusEl = document.getElementById('osc-status');
+  if (oscState.enabled) {
+    const targets = [];
+    if (oscState.touchdesigner.enabled) targets.push('TD');
+    if (oscState.ableton.enabled) targets.push('ABL');
+    statusEl.className = 'game-card-status playing';
+    statusEl.textContent = targets.length ? targets.join('+') : 'ON';
+  } else {
+    statusEl.className = 'game-card-status stopped';
+    statusEl.textContent = 'OFF';
+  }
+}
+
+socket.on('osc:config', (config) => {
+  Object.assign(oscState, config);
+  updateOscUI();
+
+  // Show warning if OSC unavailable (cloud deployment)
+  const oscCard = document.getElementById('osc-card');
+  const applyBtn = document.getElementById('osc-apply');
+  if (config.available === false) {
+    oscCard.style.opacity = '0.5';
+    const warning = document.createElement('div');
+    warning.style.cssText = 'font-size:10px;color:#FF9800;margin-top:6px;';
+    warning.textContent = config.isCloud
+      ? 'OSC indisponible (deploiement cloud — UDP non supporte)'
+      : 'OSC indisponible (module node-osc manquant)';
+    warning.id = 'osc-warning';
+    if (!document.getElementById('osc-warning')) {
+      oscCard.appendChild(warning);
+    }
+    applyBtn.disabled = true;
+    applyBtn.style.opacity = '0.4';
+    document.getElementById('osc-enabled').disabled = true;
+  }
+
+  console.log('[Admin] OSC config received', config);
+});
+
+document.getElementById('osc-apply').addEventListener('click', () => {
+  const config = {
+    enabled: document.getElementById('osc-enabled').checked,
+    touchdesigner: {
+      enabled: document.getElementById('osc-td-enabled').checked,
+      host: document.getElementById('osc-td-host').value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('osc-td-port').value, 10) || 7000
+    },
+    ableton: {
+      enabled: document.getElementById('osc-ableton-enabled').checked,
+      host: document.getElementById('osc-ableton-host').value.trim() || '127.0.0.1',
+      port: parseInt(document.getElementById('osc-ableton-port').value, 10) || 9000
+    }
+  };
+
+  connectionManager.emit('osc:configure', config);
+  Object.assign(oscState, config);
+  updateOscUI();
+  showAdminNotification('OSC ' + (config.enabled ? 'active' : 'desactive'));
+});
+
+// Quick toggle
+document.getElementById('osc-enabled').addEventListener('change', () => {
+  // Just update the UI, actual config is sent on Apply
+});
+
+// =============================================
+// QR CODE GENERATOR
+// =============================================
+
+// Auto-detect server IP
+(function autoDetectIP() {
+  const ip = window.location.hostname;
+  const port = window.location.port || '3000';
+  const ipInput = document.getElementById('qr-server-ip');
+  const portInput = document.getElementById('qr-server-port');
+  if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+    ipInput.value = ip;
+  } else {
+    ipInput.placeholder = 'Ex: 192.168.1.42';
+  }
+  if (port) portInput.value = port;
+})();
+
+function generateWifiString(ssid, password, security) {
+  if (!ssid) return '';
+  if (security === 'nopass' || !password) {
+    return `WIFI:T:nopass;S:${ssid};;`;
+  }
+  return `WIFI:T:${security};S:${ssid};P:${password};;`;
+}
+
+function getQROptions(size) {
+  return {
+    width: size,
+    margin: 2,
+    color: { dark: '#ffffff', light: '#000000' },
+    errorCorrectionLevel: 'M'
+  };
+}
+
+async function renderQR(container, text, size) {
+  container.innerHTML = '';
+  if (!text) return null;
+  const canvas = document.createElement('canvas');
+  await QRCode.toCanvas(canvas, text, getQROptions(size || 140));
+  container.appendChild(canvas);
+  return canvas;
+}
+
+document.getElementById('qr-generate').addEventListener('click', async () => {
+  const ip = document.getElementById('qr-server-ip').value.trim();
+  const port = document.getElementById('qr-server-port').value.trim() || '3000';
+  const page = document.getElementById('qr-target-page').value;
+  const wifiEnabled = document.getElementById('qr-wifi-enabled').checked;
+  const ssid = document.getElementById('qr-wifi-ssid').value.trim();
+  const password = document.getElementById('qr-wifi-password').value;
+  const security = document.getElementById('qr-wifi-security').value;
+
+  if (!ip) {
+    showAdminNotification('Entrez l\'IP du serveur');
+    return;
+  }
+
+  const url = `http://${ip}:${port}${page}`;
+  const display = document.getElementById('qr-display');
+  display.style.display = 'block';
+
+  // Wi-Fi QR
+  const wifiSection = document.getElementById('qr-wifi-section');
+  if (wifiEnabled && ssid) {
+    wifiSection.style.display = '';
+    const wifiString = generateWifiString(ssid, password, security);
+    await renderQR(document.getElementById('qr-wifi-canvas'), wifiString, 140);
+    document.getElementById('qr-wifi-label').textContent = ssid + (password ? ' (WPA)' : ' (ouvert)');
+  } else {
+    wifiSection.style.display = 'none';
+  }
+
+  // URL QR
+  await renderQR(document.getElementById('qr-url-canvas'), url, 140);
+  document.getElementById('qr-url-label').textContent = url;
+
+  showAdminNotification('QR codes generes');
+});
+
+// Fullscreen QR
+document.getElementById('qr-fullscreen').addEventListener('click', async () => {
+  const ip = document.getElementById('qr-server-ip').value.trim();
+  const port = document.getElementById('qr-server-port').value.trim() || '3000';
+  const page = document.getElementById('qr-target-page').value;
+  const wifiEnabled = document.getElementById('qr-wifi-enabled').checked;
+  const ssid = document.getElementById('qr-wifi-ssid').value.trim();
+  const password = document.getElementById('qr-wifi-password').value;
+  const security = document.getElementById('qr-wifi-security').value;
+
+  if (!ip) return;
+
+  const url = `http://${ip}:${port}${page}`;
+  const overlay = document.getElementById('qr-overlay');
+  const content = document.getElementById('qr-overlay-content');
+  content.innerHTML = '';
+
+  const qrSize = Math.min(window.innerWidth, window.innerHeight) * 0.35;
+
+  // Title
+  const title = document.createElement('div');
+  title.style.cssText = 'color:#fff; font-size:28px; font-weight:700; margin-bottom:30px; letter-spacing:1px;';
+  title.textContent = 'PICTURAEVOX';
+  content.appendChild(title);
+
+  // Wi-Fi QR
+  if (wifiEnabled && ssid) {
+    const wifiLabel = document.createElement('div');
+    wifiLabel.style.cssText = 'color:#888; font-size:14px; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;';
+    wifiLabel.textContent = '1. Connecte-toi au Wi-Fi';
+    content.appendChild(wifiLabel);
+
+    const wifiContainer = document.createElement('div');
+    content.appendChild(wifiContainer);
+    const wifiString = generateWifiString(ssid, password, security);
+    await QRCode.toCanvas(document.createElement('canvas'), wifiString, getQROptions(qrSize)).then(canvas => {
+      wifiContainer.appendChild(canvas);
+    });
+
+    const ssidLabel = document.createElement('div');
+    ssidLabel.style.cssText = 'color:#aaa; font-size:16px; margin-top:8px; margin-bottom:30px;';
+    ssidLabel.textContent = ssid;
+    content.appendChild(ssidLabel);
+
+    const step2Label = document.createElement('div');
+    step2Label.style.cssText = 'color:#888; font-size:14px; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;';
+    step2Label.textContent = '2. Ouvre cette page';
+    content.appendChild(step2Label);
+  } else {
+    const scanLabel = document.createElement('div');
+    scanLabel.style.cssText = 'color:#888; font-size:14px; text-transform:uppercase; letter-spacing:2px; margin-bottom:10px;';
+    scanLabel.textContent = 'Scanne pour jouer';
+    content.appendChild(scanLabel);
+  }
+
+  // URL QR
+  const urlContainer = document.createElement('div');
+  content.appendChild(urlContainer);
+  await QRCode.toCanvas(document.createElement('canvas'), url, getQROptions(qrSize)).then(canvas => {
+    urlContainer.appendChild(canvas);
+  });
+
+  const urlLabel = document.createElement('div');
+  urlLabel.style.cssText = 'color:#00d9ff; font-size:16px; font-weight:600; margin-top:8px;';
+  urlLabel.textContent = url;
+  content.appendChild(urlLabel);
+
+  // Hint
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:#444; font-size:12px; margin-top:24px;';
+  hint.textContent = 'Cliquer pour fermer';
+  content.appendChild(hint);
+
+  overlay.style.display = 'flex';
+});
+
+document.getElementById('qr-overlay').addEventListener('click', () => {
+  document.getElementById('qr-overlay').style.display = 'none';
+});
+
+// Download QR as PNG
+document.getElementById('qr-download').addEventListener('click', () => {
+  const ip = document.getElementById('qr-server-ip').value.trim();
+  const port = document.getElementById('qr-server-port').value.trim() || '3000';
+  const page = document.getElementById('qr-target-page').value;
+  const wifiEnabled = document.getElementById('qr-wifi-enabled').checked;
+  const ssid = document.getElementById('qr-wifi-ssid').value.trim();
+  const password = document.getElementById('qr-wifi-password').value;
+  const security = document.getElementById('qr-wifi-security').value;
+
+  if (!ip) return;
+
+  const url = `http://${ip}:${port}${page}`;
+  const exportSize = 400;
+
+  // Create a combined canvas for download
+  const combinedCanvas = document.createElement('canvas');
+  const hasWifi = wifiEnabled && ssid;
+  combinedCanvas.width = hasWifi ? exportSize * 2 + 80 : exportSize + 40;
+  combinedCanvas.height = exportSize + 120;
+  const ctx = combinedCanvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+
+  const generateAndDraw = async () => {
+    let xOffset = 20;
+
+    if (hasWifi) {
+      // Wi-Fi QR
+      const wifiCanvas = document.createElement('canvas');
+      const wifiString = generateWifiString(ssid, password, security);
+      await QRCode.toCanvas(wifiCanvas, wifiString, { ...getQROptions(exportSize), width: exportSize });
+      ctx.drawImage(wifiCanvas, xOffset, 10);
+
+      ctx.fillStyle = '#888';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('1. Wi-Fi: ' + ssid, xOffset + exportSize / 2, exportSize + 35);
+
+      xOffset += exportSize + 40;
+    }
+
+    // URL QR
+    const urlCanvas = document.createElement('canvas');
+    await QRCode.toCanvas(urlCanvas, url, { ...getQROptions(exportSize), width: exportSize });
+    ctx.drawImage(urlCanvas, xOffset, 10);
+
+    ctx.fillStyle = '#00d9ff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText((hasWifi ? '2. ' : '') + url, xOffset + exportSize / 2, exportSize + 35);
+
+    // Title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('PICTURAEVOX', combinedCanvas.width / 2, exportSize + 70);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = 'picturaevox-qrcodes.png';
+    link.href = combinedCanvas.toDataURL('image/png');
+    link.click();
+    showAdminNotification('QR codes telecharges');
+  };
+
+  generateAndDraw();
+});
+
+// =============================================
 // INITIALIZATION
 // =============================================
 
