@@ -498,6 +498,73 @@
       .draw-toolbar .color-dot { width: 24px; height: 24px; }
     }
 
+    /* === WORD CHOICE PHASE === */
+    .word-choice-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .word-choice-phase.visible { display: block; }
+    .word-choice-phase h2 { color: #fff; font-size: 20px; margin: 0 0 6px; }
+    .word-choice-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .word-choice-card {
+      padding: 18px 20px;
+      background: rgba(18, 18, 24, 0.92);
+      border: 2px solid rgba(107, 91, 255, 0.25);
+      border-radius: 14px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    .word-choice-card:hover {
+      border-color: #6b5bff;
+      background: rgba(107, 91, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(107, 91, 255, 0.3);
+    }
+    .word-choice-card:active { transform: scale(0.97); }
+
+    /* === DEVINE WAITING PHASE === */
+    .devine-waiting-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .devine-waiting-phase.visible { display: block; }
+    .devine-waiting-phase h2 { color: #fff; font-size: 20px; margin: 0 0 8px; }
+
+    /* === DEVINE WIN PHASE === */
+    .devine-win-phase {
+      display: none;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .devine-win-phase.visible { display: block; }
+    .win-icon { font-size: 64px; margin-bottom: 12px; }
+    .devine-win-phase h2 { color: #FFD740; font-size: 26px; margin: 0 0 8px; font-weight: 700; }
+    .devine-win-phase p { color: #bbb; font-size: 16px; margin: 0 0 20px; }
+
+    /* === TARGET SCORE INDICATOR === */
+    .target-score-indicator {
+      color: rgba(255,255,255,0.35);
+      font-size: 11px;
+      text-align: center;
+      margin-top: 6px;
+    }
+    .target-score-indicator strong { color: #6b5bff; }
+
     /* === SHARED CANVAS BACKGROUND === */
     #shared-canvas-bg {
       position: fixed;
@@ -704,6 +771,29 @@
     <div class="timer-display" id="word-timer-display" style="margin-bottom:16px;">30</div>
     <input type="text" class="word-input" id="word-input" placeholder="Ecris ici..." maxlength="60" autocomplete="off" />
     <button class="word-submit-btn" id="word-submit-btn">Envoyer</button>
+  </div>
+
+  <!-- WORD CHOICE PHASE (Dessine-Devine) -->
+  <div class="word-choice-phase" id="word-choice-phase">
+    <h2>Choisis un mot a dessiner</h2>
+    <p class="subtitle" id="word-choice-timer">15s</p>
+    <div class="word-choice-grid" id="word-choice-grid"></div>
+  </div>
+
+  <!-- DEVINE WAITING PHASE -->
+  <div class="devine-waiting-phase" id="devine-waiting-phase">
+    <h2 id="devine-waiting-title">Le dessinateur choisit son mot...</h2>
+    <p class="subtitle"><span class="pulse-dot"></span> Prepare-toi a deviner !</p>
+    <div class="scoreboard" id="devine-waiting-scoreboard"></div>
+  </div>
+
+  <!-- DEVINE WIN PHASE -->
+  <div class="devine-win-phase" id="devine-win-phase">
+    <div class="win-icon">&#x1F3C6;</div>
+    <h2 id="devine-win-title">Victoire !</h2>
+    <p id="devine-win-text"></p>
+    <div class="scoreboard" id="devine-win-scoreboard"></div>
+    <button class="replay-btn" id="devine-replay-btn">Rejouer</button>
   </div>
 
   <!-- DONE PHASE -->

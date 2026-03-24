@@ -1,0 +1,80 @@
+{
+  "categories": {
+    "animaux": [
+      "chat", "chien", "oiseau", "poisson", "serpent", "tortue", "lapin",
+      "souris", "elephant", "girafe", "lion", "tigre", "ours", "singe",
+      "cheval", "vache", "cochon", "mouton", "poule", "canard", "papillon",
+      "araignee", "grenouille", "crocodile", "baleine", "dauphin", "requin",
+      "aigle", "hibou", "pingouin", "escargot", "abeille", "fourmi",
+      "hippopotame", "rhinoceros", "zebre", "perroquet", "flamant",
+      "crabe", "pieuvre", "meduse", "scorpion", "cameleon", "kangourou",
+      "koala", "panda", "loup", "renard", "cerf", "herisson"
+    ],
+    "nourriture": [
+      "pizza", "gateau", "pomme", "banane", "fromage", "hamburger",
+      "glace", "croissant", "baguette", "spaghetti", "sushi", "oeuf",
+      "carotte", "tomate", "fraise", "cerise", "pastèque", "ananas",
+      "chocolat", "bonbon", "cookie", "crepe", "sandwich", "hotdog",
+      "frites", "soupe", "salade", "raisin", "citron", "orange",
+      "champignon", "popcorn", "donut", "tarte", "brioche", "miel"
+    ],
+    "objets": [
+      "maison", "voiture", "velo", "telephone", "ordinateur", "television",
+      "lampe", "chaise", "table", "lit", "cle", "lunettes", "montre",
+      "parapluie", "valise", "bougie", "miroir", "ciseaux", "marteau",
+      "guitare", "piano", "tambour", "camera", "livre", "crayon",
+      "ballon", "cadeau", "couronne", "epee", "bouclier", "echelle",
+      "ampoule", "robot", "fusee", "avion", "bateau", "train",
+      "helicoptere", "skateboard", "trottinette", "drapeau", "ancre",
+      "boussole", "jumelles", "microscope", "telescope", "horloge",
+      "reveil", "coffre", "cle a molette", "tournevis", "sablier"
+    ],
+    "nature": [
+      "arbre", "fleur", "soleil", "lune", "etoile", "nuage", "pluie",
+      "neige", "montagne", "riviere", "ocean", "volcan", "arc-en-ciel",
+      "eclair", "tornade", "ile", "desert", "foret", "cascade",
+      "cactus", "palmier", "champignon", "rose", "tournesol",
+      "feuille", "plage", "grotte", "glacier", "aurore boreale"
+    ],
+    "personnages": [
+      "pirate", "fantome", "sorciere", "vampire", "zombie", "ninja",
+      "astronaute", "pompier", "policier", "clown", "roi", "reine",
+      "princesse", "chevalier", "cowboy", "magicien", "superheros",
+      "sirene", "dragon", "licorne", "fee", "monstre", "alien",
+      "momie", "robot", "ange", "diable", "elfe", "geant", "nain"
+    ],
+    "lieux": [
+      "chateau", "pyramide", "phare", "pont", "eglise", "prison",
+      "hopital", "ecole", "cinema", "restaurant", "parc", "zoo",
+      "plage", "camping", "grotte", "igloo", "tipi", "moulin",
+      "tour eiffel", "statue", "fontaine", "labyrinthe", "stade",
+      "piscine", "bibliotheque", "musee", "gare", "aeroport"
+    ],
+    "vetements": [
+      "chapeau", "couronne", "lunettes de soleil", "cravate", "noeud papillon",
+      "cape", "robe", "jupe", "pantalon", "chaussure", "botte",
+      "gant", "echarpe", "casquette", "maillot de bain", "pyjama",
+      "sac a dos", "ceinture", "collier", "bague"
+    ],
+    "sport": [
+      "football", "basketball", "tennis", "surf", "ski", "natation",
+      "boxe", "karate", "escalade", "plongee", "parachute",
+      "velo", "skateboard", "bowling", "golf", "ping-pong",
+      "hockey", "baseball", "volleyball", "tir a l'arc"
+    ],
+    "actions": [
+      "dormir", "manger", "courir", "danser", "chanter", "pleurer",
+      "rire", "voler", "nager", "sauter", "tomber", "cuisiner",
+      "peindre", "photographier", "pecher", "jardiner", "lire",
+      "ecrire", "conduire", "jongler", "applaudir", "eternuer"
+    ],
+    "divers": [
+      "coeur", "diamant", "trefle", "note de musique", "empreinte",
+      "spirale", "eclair", "flamme", "goutte", "bulle", "flocon",
+      "crane", "os", "oeil", "main", "pied", "cerveau",
+      "dent", "puzzle", "labyrinthee", "carte au tresor",
+      "coffre au tresor", "bombe", "dynamite", "boulet",
+      "chaine", "cadenas", "cle", "aimant", "balance"
+    ]
+  }
+}

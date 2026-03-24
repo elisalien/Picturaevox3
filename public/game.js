@@ -38,6 +38,9 @@ const rulesOkBtn = document.getElementById('rules-ok-btn');
 const rulesText = document.getElementById('rules-text');
 const submitBtn = document.getElementById('submit-btn');
 const replayBtn = document.getElementById('replay-btn');
+const wordChoicePhase = document.getElementById('word-choice-phase');
+const devineWaitingPhase = document.getElementById('devine-waiting-phase');
+const devineWinPhase = document.getElementById('devine-win-phase');
 const eraserBtn = document.getElementById('eraser-btn');
 const undoBtn = document.getElementById('undo-btn');
 const gameSizeSlider = document.getElementById('game-size-slider');
@@ -45,7 +48,7 @@ const gameSizeSlider = document.getElementById('game-size-slider');
 // === PHASE MANAGEMENT ===
 function hideAll() {
   [modeSelectPhase, lobbyPhase, drawPhase, guessPhase, wordPromptPhase,
-   donePhase, spectatorPhase, revealPhase].forEach(el => {
+   donePhase, spectatorPhase, revealPhase, wordChoicePhase, devineWaitingPhase, devineWinPhase].forEach(el => {
     if (el) {
       el.style.display = 'none';
       el.classList.remove('visible');
@@ -391,12 +394,64 @@ socket.on('telephone:reset', () => {
 // DESSINE-DEVINE EVENTS
 // =============================================
 
+let devineTargetScore = 5;
+let devineChooseTimer = null;
+
+socket.on('devine:settings', ({ targetScore }) => {
+  devineTargetScore = targetScore || 5;
+});
+
+// Word choice phase — drawer picks from 3 words
+socket.on('devine:chooseWord', ({ words, round, duration }) => {
+  showPhase('word-choice');
+
+  const grid = document.getElementById('word-choice-grid');
+  grid.innerHTML = '';
+
+  words.forEach(word => {
+    const card = document.createElement('div');
+    card.className = 'word-choice-card';
+    card.textContent = word;
+    card.addEventListener('click', () => {
+      socket.emit('devine:chooseWord', { word });
+      // Disable further clicks
+      grid.querySelectorAll('.word-choice-card').forEach(c => {
+        c.style.pointerEvents = 'none';
+        c.style.opacity = c === card ? '1' : '0.3';
+      });
+      card.style.borderColor = '#6b5bff';
+      card.style.background = 'rgba(107, 91, 255, 0.2)';
+    });
+    grid.appendChild(card);
+  });
+
+  // Countdown for choosing
+  let remaining = duration || 15;
+  const timerEl = document.getElementById('word-choice-timer');
+  timerEl.textContent = remaining + 's';
+  if (devineChooseTimer) clearInterval(devineChooseTimer);
+  devineChooseTimer = setInterval(() => {
+    remaining--;
+    timerEl.textContent = remaining + 's';
+    if (remaining <= 0) clearInterval(devineChooseTimer);
+  }, 1000);
+});
+
+// Waiting phase for guessers while drawer chooses
+socket.on('devine:waiting', ({ drawer, round }) => {
+  document.getElementById('devine-waiting-title').textContent = drawer + ' choisit son mot...';
+  showPhase('devine-waiting');
+});
+
+// Drawer starts drawing after choosing
 socket.on('devine:youDraw', ({ word, round }) => {
+  if (devineChooseTimer) { clearInterval(devineChooseTimer); devineChooseTimer = null; }
+
   roleBadge.textContent = 'Dessine !';
   rulesText.innerHTML = `Dessine : <strong>${escapeHtml(word)}</strong><br>Les autres doivent deviner !`;
 
   showPhase('draw');
-  submitBtn.style.display = 'none'; // No submit in devine - live streaming
+  submitBtn.style.display = 'none';
   rulesPopup.classList.add('visible');
 
   createDrawCanvas({
@@ -414,7 +469,6 @@ socket.on('devine:guessMode', ({ drawer, round }) => {
 
   showPhase('guess');
 
-  // Create read-only canvas for viewing
   if (guessCanvas) guessCanvas.destroy();
   document.getElementById('guess-canvas-container').innerHTML = '';
   guessCanvas = new GameCanvas('guess-canvas-container', { mode: 'devine', readOnly: true });
@@ -444,26 +498,34 @@ socket.on('devine:chatMessage', ({ pseudo, message, close }) => {
   chat.scrollTop = chat.scrollHeight;
 });
 
-socket.on('devine:correct', ({ pseudo, word }) => {
+socket.on('devine:correct', ({ pseudo, word, first }) => {
   const chat = document.getElementById('chat-messages');
   const msg = document.createElement('div');
   msg.className = 'chat-msg correct';
-  msg.textContent = pseudo + ' a trouve ! Le mot etait : ' + word;
+  msg.textContent = pseudo + ' a trouve' + (first ? ' en premier' : '') + ' ! Le mot etait : ' + word;
+  if (first) msg.style.fontWeight = '700';
   chat.appendChild(msg);
   chat.scrollTop = chat.scrollHeight;
 });
 
 socket.on('devine:close', ({ guess }) => {
-  // Just a hint to this player
+  // Hint to this player only
 });
 
-socket.on('devine:scores', (scores) => {
-  const scoreboard = document.getElementById('scoreboard');
+function renderDevineScores(scores, containerId) {
+  const scoreboard = document.getElementById(containerId);
   if (!scoreboard) return;
   const sorted = Object.values(scores).sort((a, b) => b.score - a.score);
-  scoreboard.innerHTML = sorted.map(s =>
+  let html = sorted.map(s =>
     `<span class="score-tag">${escapeHtml(s.pseudo)} <span class="score-val">${s.score}</span></span>`
   ).join('');
+  html += `<div class="target-score-indicator">Objectif : <strong>${devineTargetScore} pts</strong></div>`;
+  scoreboard.innerHTML = html;
+}
+
+socket.on('devine:scores', (scores) => {
+  renderDevineScores(scores, 'scoreboard');
+  renderDevineScores(scores, 'devine-waiting-scoreboard');
 });
 
 socket.on('devine:timerStart', (duration) => {
@@ -493,7 +555,18 @@ socket.on('devine:timeUp', ({ word }) => {
   }
 });
 
+socket.on('devine:gameWon', ({ pseudo, score, targetScore }) => {
+  showPhase('devine-win');
+  document.getElementById('devine-win-title').textContent = pseudo + ' a gagne !';
+  document.getElementById('devine-win-text').textContent = score + '/' + targetScore + ' points';
+});
+
+document.getElementById('devine-replay-btn').addEventListener('click', () => {
+  showModeSelect();
+});
+
 socket.on('devine:reset', () => {
+  if (devineChooseTimer) { clearInterval(devineChooseTimer); devineChooseTimer = null; }
   if (guessCanvas) { guessCanvas.destroy(); guessCanvas = null; }
   if (gameCanvas) { gameCanvas.destroy(); gameCanvas = null; }
   if (currentMode === 'devine') showModeSelect();
