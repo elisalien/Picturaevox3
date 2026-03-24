@@ -273,6 +273,14 @@ socket.on('game:timeUp', () => {
 
 socket.on('game:done', () => {
   if (!hasSubmitted && currentMode === 'cadavre') submitDrawing();
+  // Ne pas rester sur done-phase : afficher un message temporaire
+  // Le serveur enverra game:reset dans ~5s pour revenir au lobby
+  if (currentMode === 'cadavre') {
+    const doneTitle = document.getElementById('done-title');
+    const doneText = document.getElementById('done-text');
+    if (doneTitle) doneTitle.textContent = 'Dessin envoye !';
+    if (doneText) doneText.textContent = 'Regarde la projection... Retour a la toile dans quelques secondes.';
+  }
 });
 
 socket.on('game:reset', () => {

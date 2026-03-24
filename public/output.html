@@ -732,6 +732,12 @@
     socket.on('devine:roundStart', ({ drawer, round }) => {
       document.getElementById('devine-info').textContent = drawer + ' dessine... (manche ' + round + ')';
 
+      // Activer le panneau Devine sur l'output
+      if (!currentLayout.devine) {
+        currentLayout.devine = true;
+        applyLayout();
+      }
+
       if (devineOutputCanvas) devineOutputCanvas.destroy();
       document.getElementById('devine-canvas-output').innerHTML = '';
 

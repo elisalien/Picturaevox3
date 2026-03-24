@@ -240,15 +240,29 @@ function finalizeGame() {
     teams: results
   });
 
+  // Activer le panneau cadavre sur l'output automatiquement
+  adminState.outputLayout.cadavre = true;
+
   io.to('game-room').emit('game:done');
   io.to('gamemaster-room').emit('game:revealing', results);
   io.to('gamemaster-room').emit('game:galleryUpdate', gameGallery);
   io.to('exquiscadavre-room').emit('game:reveal', results);
   io.to('output-room').emit('game:reveal', results);
+  io.to('output-room').emit('output:layout', adminState.outputLayout);
 
   osc.sendGameReveal('cadavre');
   osc.sendGameState('cadavre', 'revealing');
   console.log(`Game finalized: ${results.length} teams, ${gameState.drawings.size} drawings, gallery: ${gameGallery.length} rounds`);
+
+  // Auto-reset : renvoyer les joueurs sur la toile partagée après 5s
+  setTimeout(() => {
+    resetGame();
+    io.to('game-room').emit('game:reset');
+    io.to('gamemaster-room').emit('game:reset');
+    io.to('exquiscadavre-room').emit('game:reset');
+    osc.sendReset('cadavre');
+    console.log('🔄 Cadavre auto-reset: joueurs renvoyés sur la toile partagée');
+  }, 5000);
 }
 
 function resetGame() {
@@ -1014,8 +1028,10 @@ io.on('connection', socket => {
         // Game over - reveal chains
         telephoneState.status = 'revealing';
         adminState.games.telephone.status = 'revealing';
+        adminState.outputLayout.telephone = true;
         io.to('telephone-room').emit('telephone:reveal', telephoneState.chains);
         io.to('output-room').emit('telephone:reveal', telephoneState.chains);
+        io.to('output-room').emit('output:layout', adminState.outputLayout);
         io.to('admin-room').emit('telephone:update', { status: 'revealing' });
       } else {
         // Next round
@@ -1381,7 +1397,9 @@ function startDevineRound() {
     }
   });
 
+  adminState.outputLayout.devine = true;
   io.to('output-room').emit('devine:roundStart', { drawer: drawerPseudo, round: devineState.round });
+  io.to('output-room').emit('output:layout', adminState.outputLayout);
   io.to('admin-room').emit('devine:update', { status: 'choosingWord' });
 
   // Auto-choose if drawer doesn't pick in time
@@ -1464,8 +1482,10 @@ function revealThemeDrawings() {
     imageData: data.imageData
   }));
 
+  adminState.outputLayout.theme = true;
   io.to('theme-room').emit('theme:reveal', { theme: themeState.currentTheme, drawings: results });
   io.to('output-room').emit('theme:reveal', { theme: themeState.currentTheme, drawings: results });
+  io.to('output-room').emit('output:layout', adminState.outputLayout);
   io.to('admin-room').emit('theme:update', { status: 'revealing' });
 
   osc.sendGameReveal('theme');
