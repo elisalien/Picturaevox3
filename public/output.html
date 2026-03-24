@@ -432,10 +432,59 @@
     const connectionManager = new ConnectionManager(socket);
     const brushManager = new BrushManager(layer, socket);
 
+    // === AUTO-FIT: zoom to show all drawings ===
+    let autoFitEnabled = true;
+    let autoFitTimer = null;
+
+    function getContentBounds() {
+      const children = layer.getChildren();
+      if (children.length === 0) return null;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+      children.forEach(child => {
+        const rect = child.getClientRect({ skipTransform: true });
+        if (rect.width === 0 && rect.height === 0) return;
+        minX = Math.min(minX, rect.x);
+        minY = Math.min(minY, rect.y);
+        maxX = Math.max(maxX, rect.x + rect.width);
+        maxY = Math.max(maxY, rect.y + rect.height);
+      });
+
+      if (minX === Infinity) return null;
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+
+    function autoFitCanvas() {
+      if (!autoFitEnabled) return;
+      const bounds = getContentBounds();
+      if (!bounds || bounds.width === 0 || bounds.height === 0) return;
+
+      const stageW = canvasCell.clientWidth;
+      const stageH = canvasCell.clientHeight;
+      const padding = 40;
+
+      const scaleX = (stageW - padding * 2) / bounds.width;
+      const scaleY = (stageH - padding * 2) / bounds.height;
+      const scale = Math.min(scaleX, scaleY, 2); // cap at 2x
+
+      const offsetX = (stageW - bounds.width * scale) / 2 - bounds.x * scale;
+      const offsetY = (stageH - bounds.height * scale) / 2 - bounds.y * scale;
+
+      stage.scale({ x: scale, y: scale });
+      stage.position({ x: offsetX, y: offsetY });
+      stage.batchDraw();
+    }
+
+    function scheduleAutoFit() {
+      if (autoFitTimer) clearTimeout(autoFitTimer);
+      autoFitTimer = setTimeout(autoFitCanvas, 300);
+    }
+
     function resizeCanvas() {
       stage.width(canvasCell.clientWidth);
       stage.height(canvasCell.clientHeight);
-      stage.batchDraw();
+      autoFitCanvas();
     }
 
     // ResizeObserver to track cell size changes (grid transitions)
@@ -528,6 +577,7 @@
         }
       });
       layer.draw();
+      scheduleAutoFit();
     });
 
     socket.on('drawing', (data) => {
@@ -541,6 +591,7 @@
         }));
       }
       layer.batchDraw();
+      scheduleAutoFit();
     });
 
     socket.on('draw', (data) => {
@@ -556,6 +607,7 @@
         }));
       }
       layer.draw();
+      scheduleAutoFit();
     });
 
     socket.on('brushEffect', (data) => brushManager.createNetworkEffect(data));
@@ -589,10 +641,13 @@
 
     socket.on('deleteShape', ({ id }) => {
       const s = layer.findOne('#' + id);
-      if (s) { s.destroy(); layer.draw(); }
+      if (s) { s.destroy(); layer.draw(); scheduleAutoFit(); }
     });
     socket.on('clearCanvas', () => {
       layer.destroyChildren(); brushManager.clearEverything(); layer.draw();
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      stage.batchDraw();
     });
     socket.on('restoreShapes', (shapes) => {
       layer.destroyChildren(); brushManager.clearEverything();
@@ -615,6 +670,7 @@
         }
       });
       layer.draw();
+      scheduleAutoFit();
     });
     socket.on('adminResetBrushEffects', () => {
       brushManager.clearAllEffects(); layer.batchDraw();

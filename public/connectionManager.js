@@ -47,11 +47,12 @@ class ConnectionManager {
     this.isConnected = true;
     this.reconnectAttempts = 0;
     this.updateConnectionStatus('connected');
+    this.hideDisconnectBanner();
+    this.hideReconnectionPopup();
     this.flushActionQueue();
 
-    // Si on se reconnecte après une déconnexion récente sur mobile
-    if (this.wasDisconnectedRecently && this.isMobile) {
-      this.showMobileReconnectedNotification();
+    if (this.wasDisconnectedRecently) {
+      this.showToastNotification('Reconnecte', 'Vous etes de nouveau en ligne', 'success');
       this.wasDisconnectedRecently = false;
     }
   }
@@ -63,30 +64,106 @@ class ConnectionManager {
     this.wasDisconnectedRecently = true;
     this.updateConnectionStatus('disconnected', reason);
 
-    // Message différent selon le type d'appareil
-    if (this.isMobile) {
-      this.showMobileDisconnectionAlert(reason);
-    } else {
-      // Afficher popup classique si déconnexion inattendue
-      if (reason === 'io server disconnect' || reason === 'transport close') {
-        this.showReconnectionPopup();
-      }
-    }
-  }
-
-  showMobileDisconnectionAlert(reason) {
-    const isCritical = reason === 'io server disconnect' || reason === 'transport close';
-
-    if (isCritical) {
-      this.showReconnectionPopup(false, true);
-    } else {
-      // Notification légère pour les déconnexions temporaires
-      this.showToastNotification('📱 Connexion perdue', 'Tentative de reconnexion...', 'warning');
-    }
+    // Always show the disconnect banner immediately
+    this.showDisconnectBanner();
   }
 
   showMobileReconnectedNotification() {
-    this.showToastNotification('✅ Reconnecté', 'Vous êtes de nouveau en ligne', 'success');
+    this.showToastNotification('Reconnecte', 'Vous etes de nouveau en ligne', 'success');
+  }
+
+  // === FULL-SCREEN DISCONNECT BANNER ===
+  showDisconnectBanner() {
+    this.hideDisconnectBanner();
+
+    const banner = document.createElement('div');
+    banner.id = 'disconnect-banner';
+    banner.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: bannerFadeIn 0.25s ease-out;
+      pointer-events: auto;
+    `;
+
+    banner.innerHTML = `
+      <div style="
+        background: rgba(20, 20, 30, 0.95);
+        border: 2px solid #FF5252;
+        border-radius: 16px;
+        padding: 32px 40px;
+        text-align: center;
+        max-width: 360px;
+        width: 85%;
+        box-shadow: 0 0 40px rgba(255, 82, 82, 0.2);
+      ">
+        <div style="font-size: 48px; margin-bottom: 12px;">&#x26A0;&#xFE0F;</div>
+        <h2 style="color: #FF5252; margin: 0 0 8px; font-size: 20px; font-weight: 700;">
+          Connexion perdue
+        </h2>
+        <p style="color: rgba(255,255,255,0.6); margin: 0 0 6px; font-size: 14px;">
+          Vos traits ne sont pas envoyes.
+        </p>
+        <p id="disconnect-banner-status" style="color: #FFC107; margin: 0 0 20px; font-size: 13px;">
+          Reconnexion en cours...
+        </p>
+        <div id="disconnect-banner-spinner" style="margin: 0 auto 16px;">
+          <div style="
+            width: 36px; height: 36px; margin: 0 auto;
+            border: 3px solid rgba(255,82,82,0.2);
+            border-top: 3px solid #FF5252;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          "></div>
+        </div>
+        <button id="disconnect-banner-reload" style="
+          padding: 10px 24px;
+          background: #FF5252;
+          color: #fff;
+          border: none;
+          border-radius: 10px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+        ">Actualiser la page</button>
+        <p id="disconnect-banner-queue" style="color: rgba(255,255,255,0.3); margin: 12px 0 0; font-size: 11px;"></p>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    document.getElementById('disconnect-banner-reload').addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    this.updateDisconnectBannerQueue();
+  }
+
+  updateDisconnectBannerQueue() {
+    const el = document.getElementById('disconnect-banner-queue');
+    if (el && this.actionQueue.length > 0) {
+      el.textContent = this.actionQueue.length + ' action(s) en attente';
+    }
+  }
+
+  updateDisconnectBannerStatus(text) {
+    const el = document.getElementById('disconnect-banner-status');
+    if (el) el.textContent = text;
+  }
+
+  hideDisconnectBanner() {
+    const banner = document.getElementById('disconnect-banner');
+    if (banner) {
+      banner.style.animation = 'bannerFadeOut 0.2s ease-in';
+      setTimeout(() => banner.remove(), 200);
+    }
   }
 
   showToastNotification(title, message, type = 'info') {
@@ -144,11 +221,13 @@ class ConnectionManager {
     console.log(`🔄 Reconnection attempt ${attempt}/${this.maxReconnectAttempts}`);
     this.reconnectAttempts = attempt;
     this.updateConnectionStatus('reconnecting', `Tentative ${attempt}`);
+    this.updateDisconnectBannerStatus(`Tentative de reconnexion ${attempt}/${this.maxReconnectAttempts}...`);
   }
 
   handleReconnect() {
     console.log('✅ Reconnected successfully');
     this.updateConnectionStatus('connected');
+    this.hideDisconnectBanner();
     this.hideReconnectionPopup();
     this.flushActionQueue();
   }
@@ -156,7 +235,10 @@ class ConnectionManager {
   handleReconnectFailed() {
     console.error('❌ Reconnection failed after max attempts');
     this.updateConnectionStatus('failed');
-    this.showReconnectionPopup(true);
+    this.updateDisconnectBannerStatus('Impossible de se reconnecter. Actualisez la page.');
+    // Hide spinner on failure
+    const spinner = document.getElementById('disconnect-banner-spinner');
+    if (spinner) spinner.style.display = 'none';
   }
 
   // Queue d'actions pour réseau faible
@@ -194,7 +276,9 @@ class ConnectionManager {
       this.socket.emit(eventName, data);
       return true;
     } else {
-      return this.queueAction(eventName, data) !== null;
+      const result = this.queueAction(eventName, data) !== null;
+      this.updateDisconnectBannerQueue();
+      return result;
     }
   }
 
@@ -451,6 +535,15 @@ connectionStyles.textContent = `
   .connection-toast {
     pointer-events: auto;
     touch-action: none;
+  }
+
+  @keyframes bannerFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes bannerFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
   }
 `;
 document.head.appendChild(connectionStyles);

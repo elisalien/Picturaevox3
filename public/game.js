@@ -6,6 +6,7 @@ const socket = io({
   timeout: 10000,
   transports: ['websocket', 'polling']
 });
+window.socket = socket;
 
 let gameCanvas = null;
 let guessCanvas = null;

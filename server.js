@@ -214,6 +214,7 @@ function finalizeGame() {
   io.to('gamemaster-room').emit('game:revealing', results);
   io.to('gamemaster-room').emit('game:galleryUpdate', gameGallery);
   io.to('exquiscadavre-room').emit('game:reveal', results);
+  io.to('output-room').emit('game:reveal', results);
 
   osc.sendGameReveal('cadavre');
   osc.sendGameState('cadavre', 'revealing');
