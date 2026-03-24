@@ -210,14 +210,216 @@
       .toolbar-main { padding: 4px 6px; gap: 3px; border-radius: 10px; }
       .color-dot { width: 18px; height: 18px; }
     }
+
+    /* Canvas touch prevention */
+    #canvas-container {
+      touch-action: none;
+    }
+
+    /* ========== TUTORIAL OVERLAY ========== */
+    .tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      animation: tutorialFadeIn 0.4s ease forwards;
+    }
+    @keyframes tutorialFadeIn {
+      to { opacity: 1; }
+    }
+    .tutorial-overlay.hiding {
+      animation: tutorialFadeOut 0.3s ease forwards;
+    }
+    @keyframes tutorialFadeOut {
+      to { opacity: 0; }
+    }
+
+    .tutorial-card {
+      width: 90%;
+      max-width: 380px;
+      background: rgba(18, 18, 28, 0.95);
+      border-radius: 20px;
+      padding: 32px 28px 24px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+
+    .tutorial-title {
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .tutorial-subtitle {
+      color: rgba(255,255,255,0.4);
+      font-size: 12px;
+      margin-bottom: 24px;
+    }
+
+    .tutorial-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .tutorial-step {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .tutorial-step:last-child { border-bottom: none; }
+
+    .tutorial-step-icon {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: rgba(107, 91, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .tutorial-step-text {
+      text-align: left;
+    }
+    .tutorial-step-text strong {
+      color: #fff;
+      font-size: 14px;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .tutorial-step-text span {
+      color: rgba(255,255,255,0.45);
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .tutorial-gesture-anim {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .tutorial-gesture-anim .finger-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b5bff;
+      animation: fingerPulse 1.5s ease-in-out infinite;
+    }
+    .tutorial-gesture-anim .finger-dot:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+    @keyframes fingerPulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.4); opacity: 1; }
+    }
+
+    .tutorial-actions {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tutorial-btn-start {
+      padding: 12px 24px;
+      background: #6b5bff;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tutorial-btn-start:hover { background: #7c6eff; transform: scale(1.02); }
+    .tutorial-btn-start:active { transform: scale(0.98); }
+    .tutorial-btn-skip {
+      padding: 8px;
+      background: none;
+      color: rgba(255,255,255,0.3);
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .tutorial-btn-skip:hover { color: rgba(255,255,255,0.6); }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
 
+  <!-- TUTORIAL OVERLAY -->
+  <div class="tutorial-overlay" id="tutorial-overlay" style="display:none;">
+    <div class="tutorial-card">
+      <div class="tutorial-title">Bienvenue sur Picturaevox</div>
+      <div class="tutorial-subtitle">Toile collaborative en temps reel</div>
+
+      <div class="tutorial-steps">
+        <div class="tutorial-step">
+          <div class="tutorial-step-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b8adff" stroke-width="2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </div>
+          <div class="tutorial-step-text">
+            <strong>1 doigt — Dessiner</strong>
+            <span>Glisse un doigt sur l'ecran pour tracer</span>
+          </div>
+        </div>
+
+        <div class="tutorial-step">
+          <div class="tutorial-step-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b8adff" stroke-width="2" stroke-linecap="round"><path d="M5 9l4-4 4 4"/><path d="M15 15l4 4-4 4"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="9" r="1"/></svg>
+          </div>
+          <div class="tutorial-step-text">
+            <strong>2 doigts — Deplacer</strong>
+            <span>Glisse deux doigts pour naviguer sur la toile</span>
+            <div class="tutorial-gesture-anim"><div class="finger-dot"></div><div class="finger-dot"></div></div>
+          </div>
+        </div>
+
+        <div class="tutorial-step">
+          <div class="tutorial-step-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b8adff" stroke-width="2" stroke-linecap="round"><path d="M15 3l6 6-6 6"/><path d="M9 21l-6-6 6-6"/></svg>
+          </div>
+          <div class="tutorial-step-text">
+            <strong>Pincer — Zoomer</strong>
+            <span>Ecarte ou rapproche deux doigts pour zoomer</span>
+          </div>
+        </div>
+
+        <div class="tutorial-step">
+          <div class="tutorial-step-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b8adff" stroke-width="2" stroke-linecap="round"><rect x="3" y="17" width="18" height="4" rx="2"/><path d="M6 13h2M10 13h2M14 13h2M18 13h2"/></svg>
+          </div>
+          <div class="tutorial-step-text">
+            <strong>Barre d'outils</strong>
+            <span>Pinceaux, couleurs et zoom en bas de l'ecran</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tutorial-actions">
+        <button class="tutorial-btn-start" id="tutorial-start">C'est parti !</button>
+        <button class="tutorial-btn-skip" id="tutorial-skip">Ne plus afficher</button>
+      </div>
+    </div>
+  </div>
+
   <!-- NAV -->
   <div class="nav-link">
     <a href="/game">Rejoindre un jeu</a>
+    <a href="#" id="show-tutorial" style="margin-left:6px;" title="Aide">?</a>
   </div>
 
   <!-- STATUS BAR -->
