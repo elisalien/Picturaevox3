@@ -1,4 +1,4 @@
-// public/app.js V4 - Avec couleurs, resize, design amélioré
+// public/app.js V5 - Multi-touch navigation + tutorial
 const socket = io({
   reconnection: true,
   reconnectionDelay: 1000,
@@ -27,6 +27,43 @@ let isDrawing = false;
 let lastLine;
 let currentId;
 let lastPanPos = null;
+
+// === MULTI-TOUCH STATE ===
+let activeTouches = new Map();
+let isPinching = false;
+let lastPinchDist = 0;
+let lastPinchCenter = null;
+
+// === PREVENT BROWSER ZOOM ON CANVAS ===
+const canvasContainer = document.getElementById('canvas-container');
+
+// Block all default touch behaviors on the canvas
+canvasContainer.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+}, { passive: false });
+
+canvasContainer.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+}, { passive: false });
+
+canvasContainer.addEventListener('touchend', (e) => {
+  e.preventDefault();
+}, { passive: false });
+
+// Block double-tap zoom globally
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
+// Block gesture events (Safari)
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
 
 // === RESIZE ===
 window.addEventListener('resize', () => {
@@ -78,6 +115,91 @@ const emitDrawingThrottled = throttle((data) => {
 const emitTextureThrottled = throttle((data) => {
   connectionManager.emit('texture', data);
 }, 120);
+
+// === MULTI-TOUCH: PINCH ZOOM + 2-FINGER PAN ===
+function getTouchDistance(t1, t2) {
+  return Math.sqrt(Math.pow(t2.clientX - t1.clientX, 2) + Math.pow(t2.clientY - t1.clientY, 2));
+}
+
+function getTouchCenter(t1, t2) {
+  return {
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2
+  };
+}
+
+canvasContainer.addEventListener('touchstart', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.set(touch.identifier, touch);
+  }
+
+  if (activeTouches.size >= 2) {
+    // Cancel any drawing in progress
+    if (isDrawing) {
+      isDrawing = false;
+      lastLine = null;
+    }
+    isPinching = true;
+
+    const touches = Array.from(activeTouches.values());
+    lastPinchDist = getTouchDistance(touches[0], touches[1]);
+    lastPinchCenter = getTouchCenter(touches[0], touches[1]);
+  }
+}, { passive: true });
+
+canvasContainer.addEventListener('touchmove', (e) => {
+  for (const touch of e.changedTouches) {
+    activeTouches.set(touch.identifier, touch);
+  }
+
+  if (isPinching && activeTouches.size >= 2) {
+    const touches = Array.from(activeTouches.values());
+    const newDist = getTouchDistance(touches[0], touches[1]);
+    const newCenter = getTouchCenter(touches[0], touches[1]);
+
+    // Pinch zoom
+    const scale = newDist / lastPinchDist;
+    const oldScale = stage.scaleX();
+    let newScale = oldScale * scale;
+    newScale = Math.max(0.1, Math.min(5, newScale));
+
+    const mousePointTo = {
+      x: (lastPinchCenter.x - stage.x()) / oldScale,
+      y: (lastPinchCenter.y - stage.y()) / oldScale
+    };
+
+    // Pan (two-finger drag)
+    const dx = newCenter.x - lastPinchCenter.x;
+    const dy = newCenter.y - lastPinchCenter.y;
+
+    stage.scale({ x: newScale, y: newScale });
+    stage.position({
+      x: newCenter.x - mousePointTo.x * newScale + dx,
+      y: newCenter.y - mousePointTo.y * newScale + dy
+    });
+    stage.batchDraw();
+
+    currentZoom = newScale;
+    updateZoomDisplay();
+
+    lastPinchDist = newDist;
+    lastPinchCenter = newCenter;
+  }
+}, { passive: true });
+
+function endPinch(e) {
+  for (const touch of e.changedTouches) {
+    activeTouches.delete(touch.identifier);
+  }
+  if (activeTouches.size < 2) {
+    isPinching = false;
+    lastPinchDist = 0;
+    lastPinchCenter = null;
+  }
+}
+
+canvasContainer.addEventListener('touchend', endPinch, { passive: true });
+canvasContainer.addEventListener('touchcancel', endPinch, { passive: true });
 
 // === INTERFACE UTILISATEUR ===
 
@@ -212,6 +334,12 @@ document.addEventListener('keydown', (e) => {
 // === EVENEMENTS DE DESSIN ===
 
 stage.on('mousedown touchstart pointerdown', (evt) => {
+  // Block drawing if pinching
+  if (isPinching) return;
+
+  // On touch, only draw with single finger
+  if (evt.evt && evt.evt.touches && evt.evt.touches.length > 1) return;
+
   const pointer = stage.getPointerPosition();
 
   if (currentTool === 'pan') {
@@ -264,6 +392,11 @@ stage.on('mousedown touchstart pointerdown', (evt) => {
 });
 
 stage.on('mousemove touchmove pointermove', (evt) => {
+  // Block drawing if pinching
+  if (isPinching) return;
+
+  if (evt.evt && evt.evt.touches && evt.evt.touches.length > 1) return;
+
   const pointer = stage.getPointerPosition();
 
   if (currentTool === 'pan' && lastPanPos) {
@@ -507,5 +640,35 @@ socket.on('adminResetBrushEffects', () => {
   showNotification('Effets réinitialisés');
 });
 
+// === TUTORIAL ===
+function showTutorial() {
+  const overlay = document.getElementById('tutorial-overlay');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('hiding');
+}
+
+function hideTutorial(permanent) {
+  const overlay = document.getElementById('tutorial-overlay');
+  overlay.classList.add('hiding');
+  if (permanent) {
+    localStorage.setItem('picturaevox-tutorial-seen', '1');
+  }
+  setTimeout(() => {
+    overlay.style.display = 'none';
+  }, 300);
+}
+
+document.getElementById('tutorial-start').addEventListener('click', () => hideTutorial(false));
+document.getElementById('tutorial-skip').addEventListener('click', () => hideTutorial(true));
+document.getElementById('show-tutorial').addEventListener('click', (e) => {
+  e.preventDefault();
+  showTutorial();
+});
+
+// Show tutorial on first visit
+if (!localStorage.getItem('picturaevox-tutorial-seen')) {
+  showTutorial();
+}
+
 updateCursor();
-console.log('App.js V4 loaded');
+console.log('App.js V5 loaded — multi-touch navigation');
