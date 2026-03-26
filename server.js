@@ -98,6 +98,42 @@ const MAX_SHAPES = 1000; // Augmenté de 500 à 1000
 const CLEANUP_INTERVAL = 60000;
 const SHAPE_TTL = 600000; // Augmenté de 5 min à 10 min
 
+// === MJPEG STREAM STATE ===
+const streamState = {
+  enabled: false,
+  fps: 25,
+  quality: 80,   // JPEG quality 1-100
+  clients: new Set(),
+  latestFrame: null
+};
+
+// MJPEG stream endpoint — consumable by OBS, VLC, Resolume, etc.
+app.get('/stream.mjpeg', (req, res) => {
+  res.setHeader('Content-Type', 'multipart/x-mixed-replace; boundary=--picturaevox');
+  res.setHeader('Cache-Control', 'no-cache, no-store');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
+
+  streamState.clients.add(res);
+  console.log(`[Stream] Client connected (${streamState.clients.size} total)`);
+
+  // Send latest frame immediately on connect
+  if (streamState.latestFrame) {
+    try {
+      res.write(`----picturaevox\r\nContent-Type: image/jpeg\r\nContent-Length: ${streamState.latestFrame.length}\r\n\r\n`);
+      res.write(streamState.latestFrame);
+      res.write('\r\n');
+    } catch (e) {}
+  }
+
+  req.on('close', () => {
+    streamState.clients.delete(res);
+    console.log(`[Stream] Client disconnected (${streamState.clients.size} remaining)`);
+  });
+  req.on('error', () => streamState.clients.delete(res));
+});
+
 // === ADMIN STATE ===
 const adminState = {
   games: {
@@ -804,6 +840,11 @@ io.on('connection', socket => {
     console.log('🎭 Exquiscadavre viewer connected');
   });
 
+  socket.on('cadavre:animation', (preset) => {
+    io.to('output-room').emit('cadavre:animation', preset || 'slide');
+    io.to('exquiscadavre-room').emit('cadavre:animation', preset || 'slide');
+  });
+
   socket.on('game:start', () => {
     if (gameState.status !== 'waiting') return;
     const players = Array.from(gameState.players.values());
@@ -939,6 +980,8 @@ io.on('connection', socket => {
     // Send demo OSC config
     socket.emit('demo:oscConfig', demoOscConfig);
     socket.emit('demo:oscStatus', { listening: osc.isServerRunning() });
+    // Send stream state
+    socket.emit('stream:state', { enabled: streamState.enabled, fps: streamState.fps, quality: streamState.quality, clients: streamState.clients.size });
     console.log('Admin panel connected');
   });
 
@@ -946,6 +989,22 @@ io.on('connection', socket => {
   socket.on('osc:configure', (config) => {
     osc.configure(config);
     io.to('admin-room').emit('osc:config', osc.getConfig());
+  });
+
+  // === MJPEG STREAM CONFIG ===
+  socket.on('stream:configure', ({ enabled, fps, quality }) => {
+    streamState.enabled = !!enabled;
+    if (fps) streamState.fps = Math.max(1, Math.min(60, parseInt(fps)));
+    if (quality) streamState.quality = Math.max(10, Math.min(100, parseInt(quality)));
+    // Tell output page to start/stop and at what settings
+    io.to('output-room').emit('stream:config', { enabled: streamState.enabled, fps: streamState.fps, quality: streamState.quality });
+    // Confirm config back to all admins
+    io.to('admin-room').emit('stream:state', { enabled: streamState.enabled, fps: streamState.fps, quality: streamState.quality, clients: streamState.clients.size });
+    console.log(`[Stream] Config: enabled=${streamState.enabled} fps=${streamState.fps} quality=${streamState.quality}`);
+  });
+
+  socket.on('stream:getState', () => {
+    socket.emit('stream:state', { enabled: streamState.enabled, fps: streamState.fps, quality: streamState.quality, clients: streamState.clients.size });
   });
 
   // === DEMO OSC CONFIG ===
@@ -1051,6 +1110,8 @@ io.on('connection', socket => {
   socket.on('output:join', () => {
     socket.join('output-room');
     socket.emit('output:layout', adminState.outputLayout);
+    // Send stream config so output page starts/stops capture accordingly
+    socket.emit('stream:config', { enabled: streamState.enabled, fps: streamState.fps, quality: streamState.quality });
     // Send latest game results if any
     if (gameGallery.length > 0) {
       socket.emit('game:gallery', gameGallery);
@@ -1059,6 +1120,25 @@ io.on('connection', socket => {
       socket.emit('game:reveal', gameState.lastResults);
     }
     console.log('Output screen connected');
+  });
+
+  // Receive JPEG frame from output page, push to all MJPEG HTTP clients
+  socket.on('stream:frame', (data) => {
+    if (!streamState.enabled || !data) return;
+    try {
+      streamState.latestFrame = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      const frame = streamState.latestFrame;
+      const header = `----picturaevox\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`;
+      streamState.clients.forEach(res => {
+        try {
+          res.write(header);
+          res.write(frame);
+          res.write('\r\n');
+        } catch (e) {
+          streamState.clients.delete(res);
+        }
+      });
+    } catch (e) {}
   });
 
   // === TELEPHONE GRIBOUILLIS EVENTS ===
@@ -1191,7 +1271,21 @@ io.on('connection', socket => {
       })
     ));
     socket.emit('devine:settings', { targetScore: devineState.settings.targetScore });
-    console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
+
+    // If game is in progress, send current state so late joiners can participate
+    if (devineState.status === 'playing' || devineState.status === 'choosingWord') {
+      const currentDrawer = devineState.players.get(devineState.currentDrawer);
+      const drawerPseudo = currentDrawer ? currentDrawer.pseudo : '?';
+      if (devineState.status === 'playing' && devineState.currentDrawer !== socket.id) {
+        // Join as guesser mid-round
+        socket.emit('devine:guessMode', { drawer: drawerPseudo, round: devineState.round });
+      } else if (devineState.status === 'choosingWord') {
+        socket.emit('devine:waiting', { drawer: drawerPseudo, round: devineState.round });
+      }
+      console.log(`Devine: ${pseudo} joined mid-game as guesser (${devineState.players.size} players)`);
+    } else {
+      console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
+    }
   });
 
   socket.on('devine:start', (opts) => {

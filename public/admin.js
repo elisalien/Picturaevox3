@@ -743,8 +743,16 @@ sidebarToggle.addEventListener('click', () => {
   }
 });
 
+// Cadavre animation preset
+document.getElementById('cadavre-animation-preset').addEventListener('change', (e) => {
+  connectionManager.emit('cadavre:animation', e.target.value);
+  showAdminNotification('Animation: ' + e.target.options[e.target.selectedIndex].text);
+});
+
 // Launch buttons
 document.getElementById('launch-cadavre').addEventListener('click', () => {
+  // Send current animation preset before launching
+  connectionManager.emit('cadavre:animation', document.getElementById('cadavre-animation-preset').value);
   connectionManager.emit('game:start');
   showAdminNotification('Lancement Cadavre Exquis');
 });
@@ -936,6 +944,53 @@ document.getElementById('demo-stop').addEventListener('click', () => {
   updateDemoUI();
   showAdminNotification('Mode Demo desactive');
 });
+
+// === MJPEG STREAM ===
+(function () {
+  const toggle = document.getElementById('stream-enabled');
+  const fpsSlider = document.getElementById('stream-fps');
+  const fpsVal = document.getElementById('stream-fps-val');
+  const qualitySlider = document.getElementById('stream-quality');
+  const qualityVal = document.getElementById('stream-quality-val');
+  const statusBadge = document.getElementById('stream-status');
+  const clientsEl = document.getElementById('stream-clients');
+  const urlEl = document.getElementById('stream-url');
+  const copyBtn = document.getElementById('stream-copy');
+
+  // Update URL display
+  const streamUrl = `${location.protocol}//${location.hostname}:${location.port || (location.protocol === 'https:' ? 443 : 80)}/stream.mjpeg`;
+  urlEl.textContent = streamUrl;
+
+  fpsSlider.addEventListener('input', () => { fpsVal.textContent = fpsSlider.value; });
+  qualitySlider.addEventListener('input', () => { qualityVal.textContent = qualitySlider.value; });
+
+  function applyStream() {
+    connectionManager.emit('stream:configure', {
+      enabled: toggle.checked,
+      fps: parseInt(fpsSlider.value),
+      quality: parseInt(qualitySlider.value)
+    });
+  }
+
+  toggle.addEventListener('change', applyStream);
+  fpsSlider.addEventListener('change', () => { if (toggle.checked) applyStream(); });
+  qualitySlider.addEventListener('change', () => { if (toggle.checked) applyStream(); });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(streamUrl).then(() => showAdminNotification('URL copiee !'));
+  });
+
+  socket.on('stream:state', ({ enabled, fps, quality, clients }) => {
+    toggle.checked = enabled;
+    fpsSlider.value = fps;
+    fpsVal.textContent = fps;
+    qualitySlider.value = quality;
+    qualityVal.textContent = quality;
+    statusBadge.textContent = enabled ? 'ON' : 'OFF';
+    statusBadge.className = 'game-card-status ' + (enabled ? 'playing' : 'stopped');
+    clientsEl.textContent = `${clients} client${clients !== 1 ? 's' : ''}`;
+  });
+})();
 
 // === DEMO OSC CONFIG ===
 let demoOscState = {

@@ -685,6 +685,61 @@
       text-align: center;
     }
 
+    /* Stream config */
+    .stream-config {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .stream-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stream-row label {
+      font-size: 10px;
+      color: var(--text-muted);
+      width: 44px;
+      flex-shrink: 0;
+    }
+    .stream-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 3px;
+    }
+    .stream-row span {
+      font-size: 10px;
+      color: var(--text-secondary);
+      width: 24px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .stream-url-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .stream-url {
+      flex: 1;
+      font-size: 9px;
+      font-family: monospace;
+      color: var(--accent);
+      background: rgba(0,217,255,0.06);
+      border: 1px solid rgba(0,217,255,0.15);
+      border-radius: 4px;
+      padding: 4px 6px;
+      word-break: break-all;
+      user-select: all;
+    }
+    .stream-hint {
+      font-size: 9px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-top: 2px;
+    }
+
     /* Minimap */
     #minimap {
       position: fixed;
@@ -834,6 +889,16 @@
             <button class="btn-sm btn-accent" id="launch-cadavre">Lancer</button>
             <button class="btn-sm btn-ghost" id="reset-cadavre">Reset</button>
           </div>
+          <div class="theme-input-group" style="margin-top: 6px;">
+            <select id="cadavre-animation-preset">
+              <option value="none">Pas d'animation</option>
+              <option value="fade">Fondu</option>
+              <option value="slide" selected>Glissement</option>
+              <option value="bounce">Rebond</option>
+              <option value="flip">Rotation 3D</option>
+              <option value="assemble">Assemblage (piece par piece)</option>
+            </select>
+          </div>
         </div>
 
         <!-- Telephone Gribouillis -->
@@ -940,6 +1005,41 @@
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn-sm btn-accent" id="open-output" title="Ouvrir la projection">Ouvrir Output</button>
           <button class="btn-sm btn-ghost" id="send-layout">Envoyer Layout</button>
+        </div>
+      </div>
+
+      <!-- VIDEO STREAM -->
+      <div class="panel-section">
+        <div class="panel-section-title">Stream Video (MJPEG)</div>
+        <div class="game-card" id="stream-card">
+          <div class="game-card-header">
+            <span class="game-card-name">Flux MJPEG</span>
+            <span class="game-card-status stopped" id="stream-status">OFF</span>
+          </div>
+          <div class="game-card-body">
+            <label class="toggle-switch">
+              <input type="checkbox" id="stream-enabled" />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="game-card-players" id="stream-clients">0 client</span>
+          </div>
+          <div class="stream-config">
+            <div class="stream-row">
+              <label>FPS</label>
+              <input type="range" id="stream-fps" min="1" max="60" value="25" />
+              <span id="stream-fps-val">25</span>
+            </div>
+            <div class="stream-row">
+              <label>Qualite</label>
+              <input type="range" id="stream-quality" min="10" max="100" value="80" />
+              <span id="stream-quality-val">80</span>
+            </div>
+            <div class="stream-url-row" id="stream-url-row">
+              <code id="stream-url" class="stream-url"></code>
+              <button class="btn-sm btn-ghost" id="stream-copy">Copier</button>
+            </div>
+            <div class="stream-hint">OBS · VLC · Resolume · TouchDesigner (Movie In TOP)<br>Bridge NDI/Spout/Syphon via OBS NDI Plugin.</div>
+          </div>
         </div>
       </div>
 
