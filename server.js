@@ -115,6 +115,61 @@ const adminState = {
   }
 };
 
+// === DEMO MODE STATE ===
+const demoThemes = [
+  'Poissons', 'Espace', 'Cyber', 'Kaleidoscope', 'Glitch',
+  'Dinosaure', 'Urbain', 'Danseur', 'Nuage', 'Synthwave'
+];
+
+const demoOscConfig = {
+  listen: {
+    enabled: false,
+    port: 8000,
+    address: '/resolume/column'
+  },
+  themes: demoThemes.map((name, i) => ({
+    name,
+    triggerValue: i + 1,
+    ableton: { address: '/picturaevox/demo/music', value: i + 1 },
+    td: { address: '/picturaevox/demo/visual', value: i + 1 }
+  }))
+};
+
+function startDemoOscServer() {
+  if (!demoOscConfig.listen.enabled) {
+    osc.stopServer();
+    io.to('admin-room').emit('demo:oscStatus', { listening: false });
+    return;
+  }
+  osc.onDemoTrigger = (themeIndex) => {
+    const themeConf = demoOscConfig.themes.find(t => t.triggerValue === themeIndex);
+    if (!themeConf) return;
+
+    // Enable theme game if not already
+    if (!adminState.games.theme.enabled) {
+      adminState.games.theme.enabled = true;
+      io.to('admin-room').emit('admin:gamesUpdate', adminState.games);
+    }
+
+    // Reset if currently playing, then launch
+    if (themeState.status === 'playing' || themeState.status === 'revealing') {
+      if (themeState.timer) { clearInterval(themeState.timer); themeState.timer = null; }
+      themeState.status = 'stopped';
+      io.to('theme-room').emit('theme:reset');
+    }
+
+    setTimeout(() => {
+      launchThemeGame(themeConf.name);
+      osc.sendDemoTheme(themeConf);
+      io.to('admin-room').emit('demo:themeLaunched', { theme: themeConf.name, index: themeIndex });
+      console.log(`[Demo] OSC trigger → theme: ${themeConf.name}`);
+    }, 300);
+  };
+
+  const ok = osc.startServer(demoOscConfig.listen.port, demoOscConfig.listen.address);
+  io.to('admin-room').emit('demo:oscStatus', { listening: ok });
+}
+
 // === CADAVRE EXQUIS GAME STATE ===
 const gameState = {
   status: 'waiting', // waiting | playing | revealing
@@ -881,6 +936,9 @@ io.on('connection', socket => {
     });
     // Send current OSC config
     socket.emit('osc:config', osc.getConfig());
+    // Send demo OSC config
+    socket.emit('demo:oscConfig', demoOscConfig);
+    socket.emit('demo:oscStatus', { listening: osc.isServerRunning() });
     console.log('Admin panel connected');
   });
 
@@ -888,6 +946,65 @@ io.on('connection', socket => {
   socket.on('osc:configure', (config) => {
     osc.configure(config);
     io.to('admin-room').emit('osc:config', osc.getConfig());
+  });
+
+  // === DEMO OSC CONFIG ===
+  socket.on('demo:getOscConfig', () => {
+    socket.emit('demo:oscConfig', demoOscConfig);
+    socket.emit('demo:oscStatus', { listening: osc.isServerRunning() });
+  });
+
+  socket.on('demo:oscConfig', (config) => {
+    if (config.listen) {
+      demoOscConfig.listen.port = parseInt(config.listen.port, 10) || 8000;
+      demoOscConfig.listen.address = config.listen.address || '/resolume/column';
+      demoOscConfig.listen.enabled = !!config.listen.enabled;
+    }
+    if (Array.isArray(config.themes)) {
+      config.themes.forEach((t, i) => {
+        if (demoOscConfig.themes[i]) {
+          demoOscConfig.themes[i].triggerValue = Number(t.triggerValue) || (i + 1);
+          if (t.ableton) {
+            demoOscConfig.themes[i].ableton.address = t.ableton.address || '/picturaevox/demo/music';
+            demoOscConfig.themes[i].ableton.value = Number(t.ableton.value) ?? (i + 1);
+          }
+          if (t.td) {
+            demoOscConfig.themes[i].td.address = t.td.address || '/picturaevox/demo/visual';
+            demoOscConfig.themes[i].td.value = Number(t.td.value) ?? (i + 1);
+          }
+        }
+      });
+    }
+
+    startDemoOscServer();
+    io.to('admin-room').emit('demo:oscConfig', demoOscConfig);
+    console.log(`[Demo] OSC config updated — listen: ${demoOscConfig.listen.enabled ? demoOscConfig.listen.port : 'OFF'}`);
+  });
+
+  // Launch a demo theme manually (from admin) with OSC sends
+  socket.on('demo:launchTheme', ({ theme }) => {
+    const themeConf = demoOscConfig.themes.find(t => t.name === theme);
+
+    // Enable theme game if not already
+    if (!adminState.games.theme.enabled) {
+      adminState.games.theme.enabled = true;
+      io.to('admin-room').emit('admin:gamesUpdate', adminState.games);
+    }
+
+    // Reset if currently playing
+    if (themeState.status === 'playing' || themeState.status === 'revealing') {
+      if (themeState.timer) { clearInterval(themeState.timer); themeState.timer = null; }
+      themeState.status = 'stopped';
+      io.to('theme-room').emit('theme:reset');
+    }
+
+    setTimeout(() => {
+      launchThemeGame(theme);
+      // Send demo OSC if config exists for this theme
+      if (themeConf) {
+        osc.sendDemoTheme(themeConf);
+      }
+    }, 300);
   });
 
   socket.on('admin:enableGame', ({ game, enabled }) => {
@@ -1217,35 +1334,7 @@ io.on('connection', socket => {
   });
 
   socket.on('theme:start', ({ theme }) => {
-    if (!adminState.games.theme.enabled) return;
-    themeState.currentTheme = theme || 'Theme libre';
-    themeState.status = 'playing';
-    themeState.drawings.clear();
-
-    adminState.games.theme.status = 'playing';
-    io.to('theme-room').emit('theme:started', { theme: themeState.currentTheme, timeRemaining: themeState.settings.drawDuration });
-    io.to('admin-room').emit('theme:update', { status: 'playing' });
-    io.to('output-room').emit('theme:started', { theme: themeState.currentTheme });
-
-    // Timer
-    themeState.timerValue = themeState.settings.drawDuration;
-    io.to('theme-room').emit('theme:timerStart', themeState.timerValue);
-    themeState.timer = setInterval(() => {
-      themeState.timerValue--;
-      io.to('theme-room').emit('theme:timer', themeState.timerValue);
-      if (themeState.timerValue <= 0) {
-        clearInterval(themeState.timer);
-        themeState.timer = null;
-        io.to('theme-room').emit('theme:timeUp');
-        // Collect and reveal
-        setTimeout(() => revealThemeDrawings(), 3000);
-      }
-    }, 1000);
-
-    osc.sendGameStart('theme');
-    osc.sendGameState('theme', 'playing');
-    osc.sendTheme(themeState.currentTheme);
-    console.log(`Theme started: "${themeState.currentTheme}" (${themeState.players.size} players)`);
+    launchThemeGame(theme);
   });
 
   socket.on('theme:submitDrawing', ({ imageData }) => {
@@ -1471,6 +1560,37 @@ function broadcastDevineScores() {
   );
   io.to('devine-room').emit('devine:scores', scores);
   io.to('output-room').emit('devine:scores', scores);
+}
+
+function launchThemeGame(theme) {
+  if (!adminState.games.theme.enabled) return;
+  themeState.currentTheme = theme || 'Theme libre';
+  themeState.status = 'playing';
+  themeState.drawings.clear();
+
+  adminState.games.theme.status = 'playing';
+  io.to('theme-room').emit('theme:started', { theme: themeState.currentTheme, timeRemaining: themeState.settings.drawDuration });
+  io.to('admin-room').emit('theme:update', { status: 'playing' });
+  io.to('output-room').emit('theme:started', { theme: themeState.currentTheme });
+
+  // Timer
+  themeState.timerValue = themeState.settings.drawDuration;
+  io.to('theme-room').emit('theme:timerStart', themeState.timerValue);
+  themeState.timer = setInterval(() => {
+    themeState.timerValue--;
+    io.to('theme-room').emit('theme:timer', themeState.timerValue);
+    if (themeState.timerValue <= 0) {
+      clearInterval(themeState.timer);
+      themeState.timer = null;
+      io.to('theme-room').emit('theme:timeUp');
+      setTimeout(() => revealThemeDrawings(), 3000);
+    }
+  }, 1000);
+
+  osc.sendGameStart('theme');
+  osc.sendGameState('theme', 'playing');
+  osc.sendTheme(themeState.currentTheme);
+  console.log(`Theme started: "${themeState.currentTheme}" (${themeState.players.size} players)`);
 }
 
 function revealThemeDrawings() {

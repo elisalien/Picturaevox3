@@ -3,11 +3,15 @@
 // NOTE: OSC uses UDP — only works when server runs locally (not on Railway/Render/Heroku)
 
 let Client;
+let Server;
 try {
-  Client = require('node-osc').Client;
+  const nodeOsc = require('node-osc');
+  Client = nodeOsc.Client;
+  Server = nodeOsc.Server;
 } catch (err) {
   // node-osc not available — OSC will be disabled
   Client = null;
+  Server = null;
 }
 
 class OSCManager {
@@ -29,6 +33,11 @@ class OSCManager {
       touchdesigner: { enabled: false, host: '127.0.0.1', port: 7000, client: null },
       ableton:       { enabled: false, host: '127.0.0.1', port: 9000, client: null }
     };
+
+    // OSC Server (listener) for incoming triggers
+    this.server = null;
+    this.serverPort = 8000;
+    this.onDemoTrigger = null; // callback(themeIndex) set by server.js
 
     // Throttle settings (ms)
     this.throttle = {
@@ -297,6 +306,81 @@ class OSCManager {
   }
 
   // =============================================
+  // OSC SERVER (LISTENER) — for incoming triggers
+  // =============================================
+
+  startServer(port, listenAddress, onMessage) {
+    if (!Server || this.isCloud) {
+      console.log('[OSC] Cannot start server — not available');
+      return false;
+    }
+
+    this.stopServer();
+    this.serverPort = port || 8000;
+
+    try {
+      this.server = new Server(this.serverPort, '0.0.0.0', () => {
+        console.log(`[OSC] Server listening on 0.0.0.0:${this.serverPort}`);
+      });
+
+      this.server.on('message', (msg, rinfo) => {
+        const address = msg[0];
+        const value = msg.length > 1 ? msg[1] : null;
+        // Check if this matches the configured listen address
+        if (listenAddress && address === listenAddress && value !== null) {
+          const themeIndex = Math.round(Number(value));
+          if (themeIndex >= 1 && themeIndex <= 10 && this.onDemoTrigger) {
+            console.log(`[OSC] Demo trigger received: ${address} ${themeIndex} (from ${rinfo.address}:${rinfo.port})`);
+            this.onDemoTrigger(themeIndex);
+          }
+        }
+        // Also forward to custom callback for extensibility
+        if (onMessage) onMessage(address, value, rinfo);
+      });
+
+      this.server.on('error', (err) => {
+        console.error(`[OSC] Server error:`, err.message);
+      });
+
+      return true;
+    } catch (err) {
+      console.error(`[OSC] Failed to start server on port ${this.serverPort}:`, err.message);
+      this.server = null;
+      return false;
+    }
+  }
+
+  stopServer() {
+    if (this.server) {
+      try { this.server.close(); } catch (e) {}
+      this.server = null;
+      console.log('[OSC] Server stopped');
+    }
+  }
+
+  isServerRunning() {
+    return !!this.server;
+  }
+
+  // =============================================
+  // DEMO MODE — per-theme OSC sends
+  // =============================================
+
+  sendDemoTheme(themeConfig) {
+    if (!this.enabled || !themeConfig) return;
+
+    // Send to Ableton
+    if (themeConfig.ableton && themeConfig.ableton.address) {
+      this._sendTo('ableton', themeConfig.ableton.address, themeConfig.ableton.value);
+    }
+
+    // Send to TouchDesigner
+    if (themeConfig.td && themeConfig.td.address) {
+      this._sendTo('touchdesigner', themeConfig.td.address, themeConfig.td.value);
+    }
+  }
+
+  // =============================================
   // UTILITIES
   // =============================================
 
@@ -312,6 +396,7 @@ class OSCManager {
   }
 
   destroy() {
+    this.stopServer();
     Object.values(this.targets).forEach(t => {
       if (t.client) {
         try { t.client.close(); } catch (e) {}

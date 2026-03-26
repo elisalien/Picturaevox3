@@ -872,9 +872,9 @@ function demoLaunchTheme(theme) {
     }
   });
 
-  // Set theme and launch
+  // Set theme and launch via demo:launchTheme (handles OSC sends + reset)
   document.getElementById('theme-custom-input').value = theme;
-  connectionManager.emit('theme:start', { theme });
+  connectionManager.emit('demo:launchTheme', { theme });
   showAdminNotification('Demo : ' + theme);
   updateDemoUI();
 }
@@ -936,6 +936,116 @@ document.getElementById('demo-stop').addEventListener('click', () => {
   updateDemoUI();
   showAdminNotification('Mode Demo desactive');
 });
+
+// === DEMO OSC CONFIG ===
+let demoOscState = {
+  listen: { enabled: false, port: 8000, address: '/resolume/column' },
+  themes: demoThemes.map((name, i) => ({
+    name,
+    triggerValue: i + 1,
+    ableton: { address: '/picturaevox/demo/music', value: i + 1 },
+    td: { address: '/picturaevox/demo/visual', value: i + 1 }
+  }))
+};
+
+// Toggle OSC section
+document.getElementById('demo-osc-toggle').addEventListener('click', () => {
+  const body = document.getElementById('demo-osc-body');
+  const arrow = document.getElementById('demo-osc-arrow');
+  const visible = body.style.display !== 'none';
+  body.style.display = visible ? 'none' : '';
+  arrow.classList.toggle('open', !visible);
+});
+
+function renderDemoOscTable() {
+  const tbody = document.getElementById('demo-osc-table-body');
+  tbody.innerHTML = '';
+  demoOscState.themes.forEach((t, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${t.name}</td>
+      <td><input type="number" class="demo-osc-trig" data-i="${i}" value="${t.triggerValue}" /></td>
+      <td><input type="text" class="demo-osc-abl-addr" data-i="${i}" value="${t.ableton.address}" /></td>
+      <td><input type="number" class="demo-osc-abl-val" data-i="${i}" value="${t.ableton.value}" /></td>
+      <td><input type="text" class="demo-osc-td-addr" data-i="${i}" value="${t.td.address}" /></td>
+      <td><input type="number" class="demo-osc-td-val" data-i="${i}" value="${t.td.value}" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Update listen inputs
+  document.getElementById('demo-osc-listen-enabled').checked = demoOscState.listen.enabled;
+  document.getElementById('demo-osc-listen-port').value = demoOscState.listen.port;
+  document.getElementById('demo-osc-listen-address').value = demoOscState.listen.address;
+}
+
+function collectDemoOscConfig() {
+  const config = {
+    listen: {
+      enabled: document.getElementById('demo-osc-listen-enabled').checked,
+      port: parseInt(document.getElementById('demo-osc-listen-port').value, 10) || 8000,
+      address: document.getElementById('demo-osc-listen-address').value || '/resolume/column'
+    },
+    themes: demoOscState.themes.map((t, i) => {
+      const trig = document.querySelector(`.demo-osc-trig[data-i="${i}"]`);
+      const ablAddr = document.querySelector(`.demo-osc-abl-addr[data-i="${i}"]`);
+      const ablVal = document.querySelector(`.demo-osc-abl-val[data-i="${i}"]`);
+      const tdAddr = document.querySelector(`.demo-osc-td-addr[data-i="${i}"]`);
+      const tdVal = document.querySelector(`.demo-osc-td-val[data-i="${i}"]`);
+      return {
+        name: t.name,
+        triggerValue: parseInt(trig?.value, 10) || (i + 1),
+        ableton: {
+          address: ablAddr?.value || '/picturaevox/demo/music',
+          value: parseFloat(ablVal?.value) ?? (i + 1)
+        },
+        td: {
+          address: tdAddr?.value || '/picturaevox/demo/visual',
+          value: parseFloat(tdVal?.value) ?? (i + 1)
+        }
+      };
+    })
+  };
+  return config;
+}
+
+document.getElementById('demo-osc-apply').addEventListener('click', () => {
+  const config = collectDemoOscConfig();
+  connectionManager.emit('demo:oscConfig', config);
+  showAdminNotification('OSC Demo applique');
+});
+
+// Receive config from server
+socket.on('demo:oscConfig', (config) => {
+  demoOscState = config;
+  renderDemoOscTable();
+});
+
+socket.on('demo:oscStatus', ({ listening }) => {
+  const badge = document.getElementById('demo-osc-status');
+  if (listening) {
+    badge.textContent = 'ECOUTE';
+    badge.className = 'game-card-status playing';
+  } else {
+    badge.textContent = 'OFF';
+    badge.className = 'game-card-status stopped';
+  }
+});
+
+// When a theme is triggered via OSC, update the demo UI
+socket.on('demo:themeLaunched', ({ theme, index }) => {
+  if (!demoActive) {
+    demoActive = true;
+    demoUsed.clear();
+  }
+  demoCurrent = theme;
+  demoUsed.add(theme);
+  updateDemoUI();
+  showAdminNotification('OSC Demo: ' + theme);
+});
+
+// Initial render
+renderDemoOscTable();
 
 // Reset all
 document.getElementById('reset-all').addEventListener('click', () => {
