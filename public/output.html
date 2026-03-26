@@ -807,6 +807,69 @@
     // Initial layout
     applyLayout();
     console.log('[Output] Picturaevox responsive grid layout loaded');
+
+    // === MJPEG FRAME CAPTURE ===
+    let streamCaptureInterval = null;
+
+    function startCapture(fps, quality) {
+      stopCapture();
+      const interval = Math.round(1000 / Math.max(1, fps));
+      const q = Math.max(0.1, Math.min(1.0, (quality || 80) / 100));
+      streamCaptureInterval = setInterval(() => {
+        try {
+          // Capture full output page using an offscreen composite canvas
+          const outputEl = document.getElementById('output-grid');
+          const w = outputEl.offsetWidth || window.innerWidth;
+          const h = outputEl.offsetHeight || window.innerHeight;
+
+          // Use Konva stage for main canvas capture; composite with HTML panels
+          const konvaCanvas = stage.toCanvas({ pixelRatio: 1 });
+          const composite = document.createElement('canvas');
+          composite.width = w;
+          composite.height = h;
+          const ctx = composite.getContext('2d');
+
+          // Black background
+          ctx.fillStyle = '#070810';
+          ctx.fillRect(0, 0, w, h);
+
+          // Draw Konva canvas scaled to fill
+          const canvasCellEl = document.getElementById('canvas-cell');
+          if (canvasCellEl) {
+            const rect = canvasCellEl.getBoundingClientRect();
+            ctx.drawImage(konvaCanvas, rect.left, rect.top, rect.width, rect.height);
+          } else {
+            ctx.drawImage(konvaCanvas, 0, 0, w, h);
+          }
+
+          composite.toBlob((blob) => {
+            if (!blob) return;
+            blob.arrayBuffer().then(buf => {
+              socket.emit('stream:frame', buf);
+            });
+          }, 'image/jpeg', q);
+        } catch (e) {
+          // Silent fail — don't crash output page
+        }
+      }, interval);
+    }
+
+    function stopCapture() {
+      if (streamCaptureInterval) {
+        clearInterval(streamCaptureInterval);
+        streamCaptureInterval = null;
+      }
+    }
+
+    socket.on('stream:config', ({ enabled, fps, quality }) => {
+      if (enabled) {
+        startCapture(fps, quality);
+        console.log(`[Stream] Capture started — ${fps}fps quality=${quality}`);
+      } else {
+        stopCapture();
+        console.log('[Stream] Capture stopped');
+      }
+    });
   </script>
 </body>
 </html>
