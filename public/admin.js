@@ -948,13 +948,20 @@ let demoOscState = {
   }))
 };
 
-// Toggle OSC section
-document.getElementById('demo-osc-toggle').addEventListener('click', () => {
-  const body = document.getElementById('demo-osc-body');
-  const arrow = document.getElementById('demo-osc-arrow');
-  const visible = body.style.display !== 'none';
-  body.style.display = visible ? 'none' : '';
-  arrow.classList.toggle('open', !visible);
+// Open/close OSC modal
+const demoOscModal = document.getElementById('demo-osc-modal');
+document.getElementById('demo-osc-open').addEventListener('click', () => {
+  demoOscModal.classList.add('visible');
+  renderDemoOscTable();
+});
+document.getElementById('demo-osc-close').addEventListener('click', () => {
+  demoOscModal.classList.remove('visible');
+});
+document.getElementById('demo-osc-close-bottom').addEventListener('click', () => {
+  demoOscModal.classList.remove('visible');
+});
+demoOscModal.addEventListener('click', (e) => {
+  if (e.target === demoOscModal) demoOscModal.classList.remove('visible');
 });
 
 function renderDemoOscTable() {
@@ -1012,6 +1019,7 @@ function collectDemoOscConfig() {
 document.getElementById('demo-osc-apply').addEventListener('click', () => {
   const config = collectDemoOscConfig();
   connectionManager.emit('demo:oscConfig', config);
+  demoOscModal.classList.remove('visible');
   showAdminNotification('OSC Demo applique');
 });
 
