@@ -4,10 +4,10 @@ class ConnectionManager {
     this.socket = socket;
     this.isConnected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
+    this.maxReconnectAttempts = 20;
     this.actionQueue = [];
     this.maxQueueSize = 100;
-    this.connectionTimeout = 10000; // 10s
+    this.connectionTimeout = 30000; // 30s (hotspot-friendly)
     this.pingInterval = null;
     this.lastPingTime = Date.now();
     this.latency = 0;
@@ -213,7 +213,9 @@ class ConnectionManager {
   }
 
   handleConnectionError(error) {
-    console.error('❌ Connection error:', error);
+    console.error('❌ Connection error:', error?.message || error);
+    console.log('🔍 Debug: transport =', this.socket.io?.engine?.transport?.name || 'none');
+    console.log('🔍 Debug: server URL =', window.location.origin);
     this.updateConnectionStatus('error');
   }
 

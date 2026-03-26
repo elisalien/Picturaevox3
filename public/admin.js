@@ -3,11 +3,12 @@
 
 const socket = io({
   reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  reconnectionAttempts: 10,
-  timeout: 10000,
-  transports: ['websocket', 'polling']
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 10000,
+  reconnectionAttempts: 20,
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  forceNew: false
 });
 
 // === KONVA CANVAS SETUP ===
@@ -24,6 +25,25 @@ window.stage = stage;
 
 // === CONNECTION MANAGER ===
 const connectionManager = new ConnectionManager(socket);
+
+// === TRANSPORT MONITOR (network diagnostics) ===
+socket.on('connect', () => {
+  const updateTransport = () => {
+    const el = document.getElementById('transport-display');
+    if (el && socket.io?.engine) {
+      const name = socket.io.engine.transport?.name || '?';
+      el.textContent = name === 'polling' ? 'HTTP' : name === 'websocket' ? 'WS' : name;
+    }
+  };
+  updateTransport();
+  if (socket.io?.engine) {
+    socket.io.engine.on('upgrade', updateTransport);
+  }
+});
+socket.on('disconnect', () => {
+  const el = document.getElementById('transport-display');
+  if (el) el.textContent = '--';
+});
 
 // === BRUSH MANAGER ===
 const brushManager = new BrushManager(layer, socket);
@@ -803,6 +823,229 @@ document.getElementById('send-layout').addEventListener('click', () => {
 document.getElementById('open-output').addEventListener('click', () => {
   window.open('/output', '_blank');
 });
+
+// === MODE DEMO ===
+const demoThemes = [
+  'Poissons', 'Espace', 'Cyber', 'Kaleidoscope', 'Glitch',
+  'Dinosaure', 'Urbain', 'Danseur', 'Nuage', 'Synthwave'
+];
+let demoActive = false;
+let demoUsed = new Set();
+let demoCurrent = null;
+
+function updateDemoUI() {
+  const queueInfo = document.getElementById('demo-queue-info');
+  const queueText = document.getElementById('demo-queue-text');
+  const activateBtn = document.getElementById('demo-activate');
+
+  document.querySelectorAll('.demo-theme-chip').forEach(chip => {
+    const theme = chip.dataset.theme;
+    chip.classList.toggle('used', demoUsed.has(theme));
+    chip.classList.toggle('current', theme === demoCurrent);
+  });
+
+  if (demoActive) {
+    activateBtn.style.display = 'none';
+    queueInfo.style.display = 'flex';
+    const remaining = demoThemes.length - demoUsed.size;
+    queueText.textContent = demoCurrent
+      ? `En cours : ${demoCurrent} (${remaining} restants)`
+      : `${remaining} themes restants`;
+  } else {
+    activateBtn.style.display = '';
+    queueInfo.style.display = 'none';
+  }
+}
+
+function demoLaunchTheme(theme) {
+  demoCurrent = theme;
+  demoUsed.add(theme);
+
+  // Enable all games
+  ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+    if (!adminState.games[game].enabled) {
+      adminState.games[game].enabled = true;
+      const toggle = document.getElementById('toggle-' + game);
+      if (toggle) toggle.checked = true;
+      connectionManager.emit('admin:enableGame', { game, enabled: true });
+      updateGameCardUI(game);
+    }
+  });
+
+  // Set theme and launch via demo:launchTheme (handles OSC sends + reset)
+  document.getElementById('theme-custom-input').value = theme;
+  connectionManager.emit('demo:launchTheme', { theme });
+  showAdminNotification('Demo : ' + theme);
+  updateDemoUI();
+}
+
+document.getElementById('demo-activate').addEventListener('click', () => {
+  demoActive = true;
+  demoUsed.clear();
+  demoCurrent = null;
+
+  // Enable all games
+  ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+    adminState.games[game].enabled = true;
+    const toggle = document.getElementById('toggle-' + game);
+    if (toggle) toggle.checked = true;
+    connectionManager.emit('admin:enableGame', { game, enabled: true });
+    updateGameCardUI(game);
+  });
+
+  showAdminNotification('Mode Demo active - tous les jeux ouverts');
+  updateDemoUI();
+});
+
+// Click on a demo theme chip to launch it
+document.querySelectorAll('.demo-theme-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    if (!demoActive) {
+      demoActive = true;
+      demoUsed.clear();
+      // Enable all games
+      ['cadavre', 'telephone', 'devine', 'theme'].forEach(game => {
+        adminState.games[game].enabled = true;
+        const toggle = document.getElementById('toggle-' + game);
+        if (toggle) toggle.checked = true;
+        connectionManager.emit('admin:enableGame', { game, enabled: true });
+        updateGameCardUI(game);
+      });
+    }
+    demoLaunchTheme(chip.dataset.theme);
+  });
+});
+
+document.getElementById('demo-next').addEventListener('click', () => {
+  const next = demoThemes.find(t => !demoUsed.has(t));
+  if (next) {
+    // Reset theme game first if playing
+    connectionManager.emit('theme:reset');
+    adminState.games.theme.status = 'stopped';
+    updateGameCardUI('theme');
+    setTimeout(() => demoLaunchTheme(next), 300);
+  } else {
+    showAdminNotification('Demo terminee - tous les themes joues !');
+  }
+});
+
+document.getElementById('demo-stop').addEventListener('click', () => {
+  demoActive = false;
+  demoCurrent = null;
+  demoUsed.clear();
+  updateDemoUI();
+  showAdminNotification('Mode Demo desactive');
+});
+
+// === DEMO OSC CONFIG ===
+let demoOscState = {
+  listen: { enabled: false, port: 8000, address: '/resolume/column' },
+  themes: demoThemes.map((name, i) => ({
+    name,
+    triggerValue: i + 1,
+    ableton: { address: '/picturaevox/demo/music', value: i + 1 },
+    td: { address: '/picturaevox/demo/visual', value: i + 1 }
+  }))
+};
+
+// Toggle OSC section
+document.getElementById('demo-osc-toggle').addEventListener('click', () => {
+  const body = document.getElementById('demo-osc-body');
+  const arrow = document.getElementById('demo-osc-arrow');
+  const visible = body.style.display !== 'none';
+  body.style.display = visible ? 'none' : '';
+  arrow.classList.toggle('open', !visible);
+});
+
+function renderDemoOscTable() {
+  const tbody = document.getElementById('demo-osc-table-body');
+  tbody.innerHTML = '';
+  demoOscState.themes.forEach((t, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${t.name}</td>
+      <td><input type="number" class="demo-osc-trig" data-i="${i}" value="${t.triggerValue}" /></td>
+      <td><input type="text" class="demo-osc-abl-addr" data-i="${i}" value="${t.ableton.address}" /></td>
+      <td><input type="number" class="demo-osc-abl-val" data-i="${i}" value="${t.ableton.value}" /></td>
+      <td><input type="text" class="demo-osc-td-addr" data-i="${i}" value="${t.td.address}" /></td>
+      <td><input type="number" class="demo-osc-td-val" data-i="${i}" value="${t.td.value}" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Update listen inputs
+  document.getElementById('demo-osc-listen-enabled').checked = demoOscState.listen.enabled;
+  document.getElementById('demo-osc-listen-port').value = demoOscState.listen.port;
+  document.getElementById('demo-osc-listen-address').value = demoOscState.listen.address;
+}
+
+function collectDemoOscConfig() {
+  const config = {
+    listen: {
+      enabled: document.getElementById('demo-osc-listen-enabled').checked,
+      port: parseInt(document.getElementById('demo-osc-listen-port').value, 10) || 8000,
+      address: document.getElementById('demo-osc-listen-address').value || '/resolume/column'
+    },
+    themes: demoOscState.themes.map((t, i) => {
+      const trig = document.querySelector(`.demo-osc-trig[data-i="${i}"]`);
+      const ablAddr = document.querySelector(`.demo-osc-abl-addr[data-i="${i}"]`);
+      const ablVal = document.querySelector(`.demo-osc-abl-val[data-i="${i}"]`);
+      const tdAddr = document.querySelector(`.demo-osc-td-addr[data-i="${i}"]`);
+      const tdVal = document.querySelector(`.demo-osc-td-val[data-i="${i}"]`);
+      return {
+        name: t.name,
+        triggerValue: parseInt(trig?.value, 10) || (i + 1),
+        ableton: {
+          address: ablAddr?.value || '/picturaevox/demo/music',
+          value: parseFloat(ablVal?.value) ?? (i + 1)
+        },
+        td: {
+          address: tdAddr?.value || '/picturaevox/demo/visual',
+          value: parseFloat(tdVal?.value) ?? (i + 1)
+        }
+      };
+    })
+  };
+  return config;
+}
+
+document.getElementById('demo-osc-apply').addEventListener('click', () => {
+  const config = collectDemoOscConfig();
+  connectionManager.emit('demo:oscConfig', config);
+  showAdminNotification('OSC Demo applique');
+});
+
+// Receive config from server
+socket.on('demo:oscConfig', (config) => {
+  demoOscState = config;
+  renderDemoOscTable();
+});
+
+socket.on('demo:oscStatus', ({ listening }) => {
+  const badge = document.getElementById('demo-osc-status');
+  if (listening) {
+    badge.textContent = 'ECOUTE';
+    badge.className = 'game-card-status playing';
+  } else {
+    badge.textContent = 'OFF';
+    badge.className = 'game-card-status stopped';
+  }
+});
+
+// When a theme is triggered via OSC, update the demo UI
+socket.on('demo:themeLaunched', ({ theme, index }) => {
+  if (!demoActive) {
+    demoActive = true;
+    demoUsed.clear();
+  }
+  demoCurrent = theme;
+  demoUsed.add(theme);
+  updateDemoUI();
+  showAdminNotification('OSC Demo: ' + theme);
+});
+
+// Initial render
+renderDemoOscTable();
 
 // Reset all
 document.getElementById('reset-all').addEventListener('click', () => {

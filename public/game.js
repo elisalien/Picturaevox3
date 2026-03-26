@@ -1,10 +1,12 @@
 // game.js — Picturaevox 3.5 — Multi-mode player logic
 const socket = io({
   reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionAttempts: 5,
-  timeout: 10000,
-  transports: ['websocket', 'polling']
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 10000,
+  reconnectionAttempts: 20,
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  forceNew: false
 });
 window.socket = socket;
 
@@ -271,6 +273,14 @@ socket.on('game:timeUp', () => {
 
 socket.on('game:done', () => {
   if (!hasSubmitted && currentMode === 'cadavre') submitDrawing();
+  // Ne pas rester sur done-phase : afficher un message temporaire
+  // Le serveur enverra game:reset dans ~5s pour revenir au lobby
+  if (currentMode === 'cadavre') {
+    const doneTitle = document.getElementById('done-title');
+    const doneText = document.getElementById('done-text');
+    if (doneTitle) doneTitle.textContent = 'Dessin envoye !';
+    if (doneText) doneText.textContent = 'Regarde la projection... Retour a la toile dans quelques secondes.';
+  }
 });
 
 socket.on('game:reset', () => {

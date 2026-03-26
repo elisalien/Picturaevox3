@@ -1,11 +1,12 @@
 // public/app.js V5 - Multi-touch navigation + tutorial
 const socket = io({
   reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  reconnectionAttempts: 5,
-  timeout: 10000,
-  transports: ['websocket', 'polling']
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 10000,
+  reconnectionAttempts: 20,
+  timeout: 20000,
+  transports: ['polling', 'websocket'],
+  forceNew: false
 });
 
 const stage = new Konva.Stage({
