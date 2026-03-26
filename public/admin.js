@@ -743,8 +743,16 @@ sidebarToggle.addEventListener('click', () => {
   }
 });
 
+// Cadavre animation preset
+document.getElementById('cadavre-animation-preset').addEventListener('change', (e) => {
+  connectionManager.emit('cadavre:animation', e.target.value);
+  showAdminNotification('Animation: ' + e.target.options[e.target.selectedIndex].text);
+});
+
 // Launch buttons
 document.getElementById('launch-cadavre').addEventListener('click', () => {
+  // Send current animation preset before launching
+  connectionManager.emit('cadavre:animation', document.getElementById('cadavre-animation-preset').value);
   connectionManager.emit('game:start');
   showAdminNotification('Lancement Cadavre Exquis');
 });

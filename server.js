@@ -840,6 +840,11 @@ io.on('connection', socket => {
     console.log('🎭 Exquiscadavre viewer connected');
   });
 
+  socket.on('cadavre:animation', (preset) => {
+    io.to('output-room').emit('cadavre:animation', preset || 'slide');
+    io.to('exquiscadavre-room').emit('cadavre:animation', preset || 'slide');
+  });
+
   socket.on('game:start', () => {
     if (gameState.status !== 'waiting') return;
     const players = Array.from(gameState.players.values());
@@ -1266,7 +1271,21 @@ io.on('connection', socket => {
       })
     ));
     socket.emit('devine:settings', { targetScore: devineState.settings.targetScore });
-    console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
+
+    // If game is in progress, send current state so late joiners can participate
+    if (devineState.status === 'playing' || devineState.status === 'choosingWord') {
+      const currentDrawer = devineState.players.get(devineState.currentDrawer);
+      const drawerPseudo = currentDrawer ? currentDrawer.pseudo : '?';
+      if (devineState.status === 'playing' && devineState.currentDrawer !== socket.id) {
+        // Join as guesser mid-round
+        socket.emit('devine:guessMode', { drawer: drawerPseudo, round: devineState.round });
+      } else if (devineState.status === 'choosingWord') {
+        socket.emit('devine:waiting', { drawer: drawerPseudo, round: devineState.round });
+      }
+      console.log(`Devine: ${pseudo} joined mid-game as guesser (${devineState.players.size} players)`);
+    } else {
+      console.log(`Devine: ${pseudo} joined (${devineState.players.size} players)`);
+    }
   });
 
   socket.on('devine:start', (opts) => {

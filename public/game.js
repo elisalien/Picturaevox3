@@ -208,6 +208,12 @@ function submitDrawing() {
       break;
   }
 
+  // Hide phrase banner if visible
+  const banner = document.getElementById('telephone-phrase-banner');
+  if (banner) banner.style.display = 'none';
+  // Hide replay during telephone rounds
+  if (currentMode === 'telephone') replayBtn.style.display = 'none';
+
   showPhase('done');
 }
 
@@ -302,6 +308,8 @@ socket.on('game:reset', () => {
 // TELEPHONE GRIBOUILLIS EVENTS
 // =============================================
 
+let telephonePhrase = ''; // current phrase to draw
+
 socket.on('telephone:prompt', ({ type, round, content, message }) => {
   telephoneRound = round;
   hasSubmitted = false;
@@ -318,11 +326,21 @@ socket.on('telephone:prompt', ({ type, round, content, message }) => {
     document.getElementById('word-input').value = '';
     showPhase('word-prompt');
   } else {
-    // Draw phase
+    // Draw phase — keep phrase visible as a banner
+    telephonePhrase = content || '';
     roleBadge.textContent = 'Dessine !';
     rulesText.innerHTML = 'Dessine ce que tu lis : <strong>' + escapeHtml(content) + '</strong>';
     showPhase('draw');
-    rulesPopup.classList.add('visible');
+    // Don't show popup — show phrase as persistent banner instead
+    let banner = document.getElementById('telephone-phrase-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'telephone-phrase-banner';
+      banner.style.cssText = 'background:rgba(107,91,255,0.15);border:1px solid rgba(107,91,255,0.3);border-radius:8px;padding:8px 14px;text-align:center;color:#fff;font-size:15px;font-weight:600;margin-bottom:6px;';
+      document.getElementById('game-canvas-container').parentElement.insertBefore(banner, document.getElementById('game-canvas-container'));
+    }
+    banner.innerHTML = escapeHtml(telephonePhrase);
+    banner.style.display = '';
     createDrawCanvas({ mode: 'telephone' });
   }
 });
@@ -335,6 +353,8 @@ document.getElementById('word-submit-btn').addEventListener('click', () => {
   showPhase('done');
   document.getElementById('done-title').textContent = 'Envoye !';
   document.getElementById('done-text').textContent = 'En attente des autres joueurs...';
+  // Hide replay button during telephone rounds (game is ongoing)
+  replayBtn.style.display = 'none';
 });
 
 document.getElementById('word-input').addEventListener('keydown', (e) => {
@@ -389,7 +409,11 @@ socket.on('telephone:reveal', (chains) => {
     html += `</div>`;
   });
 
+  // Add lobby return button at end
+  html += `<button class="replay-btn" id="telephone-lobby-btn" style="margin-top:20px;padding:16px 40px;font-size:16px;width:100%;max-width:300px;">Retour au lobby</button>`;
+
   revealContent.innerHTML = html;
+  document.getElementById('telephone-lobby-btn').addEventListener('click', () => showModeSelect());
   showPhase('reveal');
 });
 
