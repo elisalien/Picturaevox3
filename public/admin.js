@@ -718,6 +718,19 @@ exportBtn.addEventListener('click', () => {
 // SIDEBAR - GAME CONTROLS
 // =============================================
 
+// === TAB NAVIGATION ===
+document.querySelectorAll('.sidebar-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    // Deactivate all tabs and panels
+    document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // Activate clicked tab and its panel
+    tab.classList.add('active');
+    const panel = document.getElementById(tab.dataset.tab);
+    if (panel) panel.classList.add('active');
+  });
+});
+
 // Toggle sidebar
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
